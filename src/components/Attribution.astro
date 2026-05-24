@@ -1,0 +1,27 @@
+---
+// Renders a small attribution line — but only when at least one of `source`
+// or `sourceUrl` is provided. When both are blank, nothing renders.
+interface Props {
+  source?: string;
+  sourceUrl?: string;
+}
+
+const { source, sourceUrl } = Astro.props;
+const show = Boolean(source || sourceUrl);
+const label = source ?? sourceUrl;
+---
+
+{
+  show && (
+    <p class="attribution">
+      Source:{' '}
+      {sourceUrl ? (
+        <a href={sourceUrl} rel="noopener noreferrer">
+          {label}
+        </a>
+      ) : (
+        <span>{label}</span>
+      )}
+    </p>
+  )
+}

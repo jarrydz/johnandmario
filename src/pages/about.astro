@@ -1,0 +1,17 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { CONTACT_EMAIL } from '../consts';
+---
+
+<BaseLayout title="About" description="About this archive.">
+  <article class="prose">
+    <h1>About</h1>
+    <p>
+      This is a personal inspiration archive. Images collected over many years
+      from Tumblr and elsewhere. I do not claim authorship of these images. Where
+      I know the original source it's credited. Where I don't, I'd genuinely like
+      to — get in touch and I'll add the credit or take the image down.
+    </p>
+    <p><a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a></p>
+  </article>
+</BaseLayout>

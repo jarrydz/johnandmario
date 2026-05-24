@@ -1,0 +1,35 @@
+# build output
+dist/
+
+# generated Astro types
+.astro/
+
+# dependencies
+node_modules/
+
+# logs
+*-debug.log*
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# environment variables
+.env
+.env.production
+
+# macOS
+.DS_Store
+
+# editor / office lock files
+.~lock.*#
+
+# --- John & Mario source archive (kept LOCAL, intentionally NOT committed) ---
+# ~479 MB of migrated images plus the metadata index live alongside the site as
+# a staging area for future bulk imports. Only images you actually reference
+# from a post (copied into src/assets/images/) get committed to the repo.
+original-blog-imgs/
+blog-image-index.xlsx
+
+# project brief (working doc, not part of the site)
+BRIEF.md

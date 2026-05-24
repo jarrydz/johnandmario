@@ -1,0 +1,10 @@
+---
+import { GITHUB_REPO } from '../consts';
+import { withBase } from '../utils';
+---
+
+<footer class="site-footer">
+  <a href={withBase('/rss.xml')}>RSS</a>
+  <a href={GITHUB_REPO} rel="noopener noreferrer">GitHub</a>
+  <a href={withBase('/about')}>About</a>
+</footer>
