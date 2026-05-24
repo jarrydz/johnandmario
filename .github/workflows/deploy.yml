@@ -25,9 +25,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Install, build and upload the site
-        uses: withastro/action@v3
         # `withastro/action` auto-detects the package manager, runs the build,
         # and uploads the artifact. `site` and `base` come from astro.config.mjs.
+        uses: withastro/action@v3
+        with:
+          # Astro 6 requires Node >=22.12.0; the action defaults to Node 20,
+          # which fails the build. Pin Node 22 to match local development.
+          node-version: 22
 
   deploy:
     needs: build
