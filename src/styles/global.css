@@ -111,13 +111,47 @@ main {
   color: var(--color-muted);
 }
 .tags {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
   margin: 0;
 }
 .tag {
   color: var(--color-muted);
+}
+.tag-extra {
+  display: none;
+}
+.tag-sep {
+  margin: 0 0.4rem;
+  opacity: 0.5;
+}
+/* Pure-CSS "+N more" expander: a visually-hidden checkbox toggles the rest. */
+.tags-toggle {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.tags-toggle:checked ~ .tag-extra {
+  display: inline;
+}
+.tags-more,
+.tags-less {
+  cursor: pointer;
+  color: var(--color-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.tags-more:hover,
+.tags-less:hover {
+  color: var(--color-text);
+}
+.tags-less {
+  display: none;
+}
+.tags-toggle:checked ~ .tags-more {
+  display: none;
+}
+.tags-toggle:checked ~ .tags-less {
+  display: inline;
 }
 
 /* ---- Attribution ---- */

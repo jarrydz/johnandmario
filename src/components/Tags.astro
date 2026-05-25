@@ -1,0 +1,41 @@
+---
+/**
+ * Tag list that shows the first `limit` tags and reveals the rest behind a
+ * "+N more" toggle. Pure CSS (a hidden checkbox) — no JavaScript, works in the
+ * static build. `id` must be unique per post so toggles don't collide.
+ */
+interface Props {
+  tags: string[];
+  id: string;
+  limit?: number;
+}
+
+const { tags, id, limit = 8 } = Astro.props;
+const toggleId = `tags-${id}`;
+const hasExtra = tags.length > limit;
+const moreCount = tags.length - limit;
+---
+
+{
+  tags.length > 0 && (
+    <span class="tags">
+      {hasExtra && <input type="checkbox" id={toggleId} class="tags-toggle" />}
+      {tags.map((t, i) => (
+        <span class:list={['tag', { 'tag-extra': i >= limit }]}>
+          {i > 0 && <span class="tag-sep">·</span>}
+          {t}
+        </span>
+      ))}
+      {hasExtra && (
+        <>
+          <label for={toggleId} class="tags-more">
+            <span class="tag-sep">·</span>+{moreCount} more
+          </label>
+          <label for={toggleId} class="tags-less">
+            <span class="tag-sep">·</span>less
+          </label>
+        </>
+      )}
+    </span>
+  )
+}

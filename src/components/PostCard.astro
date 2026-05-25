@@ -4,6 +4,7 @@ import { render } from 'astro:content';
 import type { CollectionEntry } from 'astro:content';
 import { withBase, formatDate } from '../utils';
 import RemoteImage from './RemoteImage.astro';
+import Tags from './Tags.astro';
 
 interface Props {
   post: CollectionEntry<'posts'>;
@@ -47,14 +48,6 @@ const { title, image, r2_key, image_width, image_height, image_alt, date, tags }
   <div class="caption"><Content /></div>
   <div class="post-meta">
     <a href={href}><time datetime={date.toISOString()}>{formatDate(date)}</time></a>
-    {
-      tags && tags.length > 0 && (
-        <span class="tags">
-          {tags.map((t) => (
-            <span class="tag">#{t}</span>
-          ))}
-        </span>
-      )
-    }
+    <Tags tags={tags ?? []} id={post.id} />
   </div>
 </article>

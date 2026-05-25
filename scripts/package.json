@@ -1,0 +1,17 @@
+{
+  "name": "johnandmario-import",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "One-off tooling to caption, generate posts for, and upload the John & Mario image archive.",
+  "scripts": {
+    "caption": "node --env-file=.env caption.mjs",
+    "generate": "node generate-posts.mjs",
+    "upload": "node upload.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.98.0",
+    "sharp": "^0.34.5",
+    "wrangler": "^4.94.0"
+  }
+}

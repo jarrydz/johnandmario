@@ -3,12 +3,14 @@ import { Image } from 'astro:assets';
 import type { CollectionEntry } from 'astro:content';
 import Attribution from '../components/Attribution.astro';
 import RemoteImage from '../components/RemoteImage.astro';
+import Tags from '../components/Tags.astro';
 import { formatDate } from '../utils';
 
 interface Props {
   post: CollectionEntry<'posts'>;
 }
 
+const { post } = Astro.props;
 const {
   title,
   image,
@@ -18,10 +20,11 @@ const {
   image_alt,
   date,
   tags,
+  description,
   tumblr_url,
   source,
   source_url,
-} = Astro.props.post.data;
+} = post.data;
 ---
 
 <article class="post-single">
@@ -49,19 +52,14 @@ const {
     )
   }
   {title && <h1 class="post-title">{title}</h1>}
-  <div class="caption prose"><slot /></div>
+  <div class="caption prose">
+    <slot />
+    {description && <p class="post-description">{description}</p>}
+  </div>
 
   <footer class="post-footer">
     <p><time datetime={date.toISOString()}>{formatDate(date)}</time></p>
-    {
-      tags && tags.length > 0 && (
-        <p class="tags">
-          {tags.map((t) => (
-            <span class="tag">#{t}</span>
-          ))}
-        </p>
-      )
-    }
+    {tags && tags.length > 0 && <p class="tags-line"><Tags tags={tags} id={post.id} /></p>}
     <Attribution source={source} sourceUrl={source_url} />
     {
       tumblr_url && (
