@@ -33,3 +33,6 @@ blog-image-index.xlsx
 
 # project brief (working doc, not part of the site)
 BRIEF.md
+
+# vault docs symlinked in for editor / AI context (source of truth lives in the Obsidian vault)
+docs/
