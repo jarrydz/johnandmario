@@ -3,11 +3,14 @@
  * using Claude vision. Resumable: results are appended to data/captions.jsonl
  * keyed by filename, and anything already captioned is skipped on re-run.
  *
- * Usage:
- *   export ANTHROPIC_API_KEY=sk-ant-...
- *   node caption.mjs --sample --limit 50          # representative 50 across the timeline
- *   node caption.mjs                              # everything not yet captioned
- *   node caption.mjs --limit 200 --concurrency 6
+ * Usage (the key is read from the macOS login Keychain by the npm script —
+ * it is NOT a global shell export or a file on disk):
+ *   npm run caption -- --sample --limit 50        # representative 50 across the timeline
+ *   npm run caption                               # everything not yet captioned
+ *   npm run caption -- --limit 200 --concurrency 6
+ *
+ * Store the key once (you will be prompted to paste it; it is not echoed):
+ *   security add-generic-password -U -a "$USER" -s ANTHROPIC_API_KEY -w
  *
  * Flags:
  *   --limit N        cap how many NEW images to caption this run
@@ -44,7 +47,10 @@ const concurrency = Number(getFlag('--concurrency', '4')) || 4;
 const model = getFlag('--model', DEFAULT_MODEL);
 
 if (!process.env.ANTHROPIC_API_KEY) {
-  console.error('Set ANTHROPIC_API_KEY first:  export ANTHROPIC_API_KEY=sk-ant-...');
+  console.error(
+    'No ANTHROPIC_API_KEY found. Run via "npm run caption" (it reads the macOS Keychain),\n' +
+      'or store the key once:  security add-generic-password -U -a "$USER" -s ANTHROPIC_API_KEY -w',
+  );
   process.exit(1);
 }
 
@@ -129,7 +135,9 @@ async function captionOne(rec) {
     } catch (e) {
       lastErr = e;
       const status = e?.status;
-      if (status === 429 || status === 500 || status === 529) {
+      // Retry transient API errors AND malformed-JSON responses — the prefill
+      // usually self-corrects on a second pass, killing the ~1-in-1000 parse fail.
+      if (status === 429 || status === 500 || status === 529 || e instanceof SyntaxError) {
         await sleep(1000 * 2 ** attempt); // backoff
         continue;
       }

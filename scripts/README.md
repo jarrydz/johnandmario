@@ -10,8 +10,15 @@ These run **locally on your Mac**, not in CI or the Worker.
 ```sh
 cd scripts
 npm install
-export ANTHROPIC_API_KEY=sk-ant-...   # from console.anthropic.com
+
+# Store your Anthropic key once in the macOS login Keychain (from
+# console.anthropic.com). You will be prompted to paste it; it is not echoed,
+# not written to any file, and not a global shell export.
+security add-generic-password -U -a "$USER" -s ANTHROPIC_API_KEY -w
 ```
+
+`npm run caption` reads the key from the Keychain at run time, so it is only
+present in that single process — never global, never on disk in plaintext.
 
 You also need `wrangler` logged in (done already from the image-worker setup).
 
@@ -21,9 +28,9 @@ original images are read from `../original-blog-imgs/` (git-ignored archive).
 ## The 50-image test first
 
 ```sh
-node caption.mjs --sample --limit 50     # captions a spread across 2011–2013
-node generate-posts.mjs                   # writes 50 posts to src/content/posts/
-node upload.mjs                           # uploads those 50 originals to R2
+npm run caption -- --sample --limit 50   # captions a spread across 2011–2013
+npm run generate                          # writes 50 posts to src/content/posts/
+npm run upload                            # uploads those 50 originals to R2
 ```
 
 Then review: run the site (`cd .. && npm run dev`), check the captions read
@@ -36,8 +43,8 @@ captioning skips anything already done).
 Captioning is resumable — a crash or rate-limit loses nothing.
 
 ```sh
-node caption.mjs                          # captions everything not yet done (~$10, a while)
-node generate-posts.mjs                   # regenerates all posts
+npm run caption                           # captions everything not yet done (~$10, a while)
+npm run generate                          # regenerates all posts
 ```
 
 **Upload via rclone, not wrangler**, for thousands of files. `wrangler r2
