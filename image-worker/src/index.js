@@ -26,10 +26,36 @@ const ALLOWED_FORMATS = {
   jpeg: 'image/jpeg',
 };
 
+// Hotlink protection: only requests coming from the site itself may trigger a
+// transform. Anyone embedding your images on another site — or a crawler /
+// script hitting the URLs directly — gets a 403 and never spends a (billable)
+// transform. Add your custom domain to this set when you set one up.
+const ALLOWED_ORIGINS = new Set([
+  'https://jarrydz.github.io',
+  'http://localhost:4321',
+  'http://localhost:4322',
+]);
+
+function refererAllowed(request) {
+  const ref = request.headers.get('Referer');
+  if (!ref) return false; // direct hits / no-referer crawlers are blocked
+  try {
+    return ALLOWED_ORIGINS.has(new URL(ref).origin);
+  } catch {
+    return false;
+  }
+}
+
 export default {
   async fetch(request, env, ctx) {
     if (request.method !== 'GET' && request.method !== 'HEAD') {
       return new Response('Method not allowed', { status: 405 });
+    }
+
+    // Reject anything not coming from an allowed origin BEFORE doing any work,
+    // so blocked requests cost nothing (no R2 read, no transform).
+    if (!refererAllowed(request)) {
+      return new Response('Forbidden', { status: 403 });
     }
 
     const url = new URL(request.url);
