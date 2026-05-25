@@ -1,0 +1,33 @@
+#!/bin/sh
+#
+# Pre-commit secret guard for johnandmario.
+# Blocks two things from entering a commit:
+#   1. any .env file
+#   2. anything that looks like a real Anthropic API key
+# Scans STAGED content only. Genuine false positive? Bypass once with:
+#   git commit --no-verify
+#
+# Installed per clone via:  git config core.hooksPath .githooks
+
+# 1) Refuse staged env files (defence in depth; .gitignore should exclude them).
+env_files=$(git diff --cached --name-only --diff-filter=AM | grep -E '(^|/)\.env(\.|$)')
+if [ -n "$env_files" ]; then
+  echo "pre-commit: refusing to commit env file(s):"
+  echo "$env_files" | sed 's/^/  /'
+  echo "  -> git rm --cached <file>, and confirm it is in .gitignore"
+  exit 1
+fi
+
+# 2) Scan staged additions for a real key pattern. The dotted doc placeholder
+#    has too few characters to match, so it is ignored. The value is never
+#    printed (grep -q), only the fact that one was found.
+if git diff --cached -U0 --no-color \
+   | grep -E '^\+' | grep -vE '^\+\+\+' \
+   | grep -Eq 'sk-ant-[A-Za-z0-9_-]{20,}'; then
+  echo "pre-commit: a value resembling an Anthropic API key is in your staged changes."
+  echo "  Commit blocked. Unstage it and use the Keychain instead."
+  echo "  False positive? Bypass once: git commit --no-verify"
+  exit 1
+fi
+
+exit 0

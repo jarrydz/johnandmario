@@ -15,10 +15,6 @@ const INDEX = path.join(import.meta.dirname, 'data', 'index.json');
 const CAPTIONS = path.join(import.meta.dirname, 'data', 'captions.jsonl');
 const POSTS_DIR = path.join(ROOT, 'src', 'content', 'posts');
 
-// The hand-written example post already covers this image; don't generate a
-// duplicate. (At full import you can delete the example and drop this guard.)
-const EXAMPLE_POSTID = '4943938579';
-
 const index = new Map(
   JSON.parse(fs.readFileSync(INDEX, 'utf8')).map((r) => [r.filename, r]),
 );
@@ -46,11 +42,6 @@ for (const cap of captions) {
     skipped++;
     continue;
   }
-  if (meta.postid === EXAMPLE_POSTID) {
-    skipped++;
-    continue;
-  }
-
   // Merge curatorial tags (from the original blog) with AI tags, deduped.
   const tags = [...new Set([...(meta.tags || []), ...(cap.tags || [])])];
 

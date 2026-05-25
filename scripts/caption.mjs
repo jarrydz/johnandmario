@@ -32,10 +32,6 @@ const ERR = path.join(import.meta.dirname, 'data', 'captions-errors.log');
 // Swap to 'claude-sonnet-4-6' for maximum quality (a few× the cost).
 const DEFAULT_MODEL = 'claude-haiku-4-5-20251001';
 
-// The hand-written example post already covers this image — skip it so we don't
-// create a duplicate when sampling/generating.
-const EXAMPLE_FILENAME = '00001_4943938579.jpg';
-
 const args = process.argv.slice(2);
 const getFlag = (name, def) => {
   const i = args.indexOf(name);
@@ -151,7 +147,7 @@ async function main() {
   const records = JSON.parse(fs.readFileSync(INDEX, 'utf8'));
   const done = loadDone();
 
-  let pool = records.filter((r) => r.filename !== EXAMPLE_FILENAME && !done.has(r.filename));
+  let pool = records.filter((r) => !done.has(r.filename));
   if (sample) pool = pickSample(pool, limit || 50);
   else if (limit) pool = pool.slice(0, limit);
 
