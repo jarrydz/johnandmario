@@ -4,8 +4,9 @@ export const SITE_TITLE = 'John & Mario';
 export const SITE_DESCRIPTION =
   'A personal inspiration archive. Image-first curation in the Tumblr tradition.';
 
-// TODO: JZ — swap this placeholder for the address you want shown publicly.
-export const CONTACT_EMAIL = 'hello@example.com';
+// Public contact address for the About page. Leave empty to hide the contact
+// line entirely; set it to a real address to show a mailto link.
+export const CONTACT_EMAIL = '';
 
 export const GITHUB_REPO = 'https://github.com/jarrydz/johnandmario';
 

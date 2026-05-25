@@ -12,6 +12,8 @@ import { CONTACT_EMAIL } from '../consts';
       I know the original source it's credited. Where I don't, I'd genuinely like
       to — get in touch and I'll add the credit or take the image down.
     </p>
-    <p><a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a></p>
+    {CONTACT_EMAIL && (
+      <p><a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a></p>
+    )}
   </article>
 </BaseLayout>
