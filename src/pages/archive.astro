@@ -5,41 +5,170 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import RemoteImage from '../components/RemoteImage.astro';
 import { withBase } from '../utils';
 
-// A grid of every post as a thumbnail — Tumblr's /archive style.
 const posts = (await getCollection('posts')).sort(
   (a, b) => b.data.date.valueOf() - a.data.date.valueOf(),
 );
+
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// Build year → months map (sorted descending)
+const yearMonths = new Map<number, Set<number>>();
+const tagCounts = new Map<string, number>();
+
+for (const post of posts) {
+  const d = post.data.date;
+  const y = d.getFullYear();
+  const m = d.getMonth();
+  if (!yearMonths.has(y)) yearMonths.set(y, new Set());
+  yearMonths.get(y)!.add(m);
+  for (const tag of post.data.tags ?? []) {
+    tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
+  }
+}
+
+const years = [...yearMonths.keys()].sort((a, b) => b - a);
+const sortedTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]);
 ---
 
 <BaseLayout title="Archive" description="Every post, as a grid of thumbnails.">
   <h1>Archive</h1>
-  <p class="post-meta">{posts.length} {posts.length === 1 ? 'post' : 'posts'}</p>
+  <p class="post-meta archive-count">{posts.length} {posts.length === 1 ? 'post' : 'posts'}</p>
 
-  <div class="archive-grid">
+  <div class="archive-filters">
+    <div class="filter-group">
+      <label class="filter-label" for="filter-year">Year</label>
+      <select id="filter-year" class="filter-select">
+        <option value="">All years</option>
+        {years.map((y) => <option value={y}>{y}</option>)}
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label class="filter-label" for="filter-month">Month</label>
+      <select id="filter-month" class="filter-select" disabled>
+        <option value="">All months</option>
+      </select>
+    </div>
+
+    <div class="filter-group filter-group-tags">
+      <span class="filter-label">Tags</span>
+      <div class="filter-tags" id="filter-tags">
+        {sortedTags.map(([tag, count]) => (
+          <button type="button" class="filter-tag" data-tag={tag}>
+            {tag}<span class="filter-tag-count">{count}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+
+    <button type="button" class="filter-clear" id="filter-clear" hidden>Clear filters</button>
+  </div>
+
+  <div class="archive-grid" id="archive-grid">
     {
-      posts.map((post) => (
-        <a
-          class="thumb"
-          href={withBase(`/posts/${post.id}`)}
-          title={post.data.title ?? post.data.image_alt ?? ''}
-        >
-          {post.data.r2_key ? (
-            <RemoteImage
-              src={post.data.r2_key}
-              alt={post.data.image_alt ?? ''}
-              width={post.data.image_width}
-              height={post.data.image_height}
-              widths={[320, 640]}
-              sizes="(max-width: 600px) 33vw, 180px"
-              loading="lazy"
-            />
-          ) : post.data.image ? (
-            <Image src={post.data.image} alt={post.data.image_alt ?? ''} width={320} loading="lazy" />
-          ) : (
-            <span class="thumb-text">{post.data.title ?? post.data.post_type}</span>
-          )}
-        </a>
-      ))
+      posts.map((post) => {
+        const d = post.data.date;
+        const tags = (post.data.tags ?? []).join(',');
+        return (
+          <a
+            class="thumb"
+            href={withBase(`/posts/${post.id}`)}
+            title={post.data.title ?? post.data.image_alt ?? ''}
+            data-year={d.getFullYear()}
+            data-month={d.getMonth()}
+            data-tags={tags}
+          >
+            {post.data.r2_key ? (
+              <RemoteImage
+                src={post.data.r2_key}
+                alt={post.data.image_alt ?? ''}
+                width={post.data.image_width}
+                height={post.data.image_height}
+                widths={[320, 640]}
+                sizes="(max-width: 600px) 33vw, 180px"
+                loading="lazy"
+              />
+            ) : post.data.image ? (
+              <Image src={post.data.image} alt={post.data.image_alt ?? ''} width={320} loading="lazy" />
+            ) : (
+              <span class="thumb-text">{post.data.title ?? post.data.post_type}</span>
+            )}
+          </a>
+        );
+      })
     }
   </div>
 </BaseLayout>
+
+<script define:vars={{ yearMonthsJSON: Object.fromEntries([...yearMonths.entries()].map(([y, ms]) => [y, [...ms].sort((a, b) => a - b)])), MONTH_NAMES }}>
+  const yearSelect = document.getElementById('filter-year');
+  const monthSelect = document.getElementById('filter-month');
+  const clearBtn = document.getElementById('filter-clear');
+  const tagButtons = document.querySelectorAll('.filter-tag');
+  const grid = document.getElementById('archive-grid');
+  const thumbs = grid.querySelectorAll('.thumb');
+  const countEl = document.querySelector('.archive-count');
+
+  let activeTag = null;
+
+  function applyFilters() {
+    const year = yearSelect.value;
+    const month = monthSelect.value;
+    let visible = 0;
+
+    for (const el of thumbs) {
+      const matchYear = !year || el.dataset.year === year;
+      const matchMonth = !month || el.dataset.month === month;
+      const matchTag = !activeTag || el.dataset.tags.split(',').includes(activeTag);
+      const show = matchYear && matchMonth && matchTag;
+      el.style.display = show ? '' : 'none';
+      if (show) visible++;
+    }
+
+    countEl.textContent = `${visible} ${visible === 1 ? 'post' : 'posts'}`;
+    clearBtn.hidden = !year && !month && !activeTag;
+  }
+
+  yearSelect.addEventListener('change', () => {
+    const y = yearSelect.value;
+    monthSelect.innerHTML = '<option value="">All months</option>';
+    if (y && yearMonthsJSON[y]) {
+      for (const m of yearMonthsJSON[y]) {
+        const opt = document.createElement('option');
+        opt.value = m;
+        opt.textContent = MONTH_NAMES[m];
+        monthSelect.appendChild(opt);
+      }
+      monthSelect.disabled = false;
+    } else {
+      monthSelect.disabled = true;
+    }
+    applyFilters();
+  });
+
+  monthSelect.addEventListener('change', applyFilters);
+
+  for (const btn of tagButtons) {
+    btn.addEventListener('click', () => {
+      const tag = btn.dataset.tag;
+      if (activeTag === tag) {
+        activeTag = null;
+        btn.classList.remove('active');
+      } else {
+        document.querySelector('.filter-tag.active')?.classList.remove('active');
+        activeTag = tag;
+        btn.classList.add('active');
+      }
+      applyFilters();
+    });
+  }
+
+  clearBtn.addEventListener('click', () => {
+    yearSelect.value = '';
+    monthSelect.innerHTML = '<option value="">All months</option>';
+    monthSelect.disabled = true;
+    activeTag = null;
+    document.querySelector('.filter-tag.active')?.classList.remove('active');
+    applyFilters();
+  });
+</script>
