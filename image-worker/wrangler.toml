@@ -1,0 +1,19 @@
+# Cloudflare Worker that serves resized/re-encoded images from R2 on the fly.
+# Deploy from this folder with:  npx wrangler deploy
+#
+# The deployed URL will be:  https://johnandmario-images.<your-subdomain>.workers.dev
+# (wrangler prints the exact URL after deploy — you'll paste it back to me.)
+
+name = "johnandmario-images"
+main = "src/index.js"
+compatibility_date = "2026-05-01"
+
+# Binds the R2 bucket holding your original images.
+# IMPORTANT: bucket_name must match the bucket you create in the dashboard.
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "johnandmario-images"
+
+# Binds the Cloudflare Images engine (used for resize / format conversion).
+[images]
+binding = "IMAGES"

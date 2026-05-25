@@ -23,7 +23,13 @@ const posts = defineCollection({
         // `image()` resolves the path (relative to the Markdown file) into an
         // ImageMetadata object so Astro can optimise it. Required for photo
         // posts — enforced by the refinement below.
-        image: image().optional(),
+        image: image().optional(), // local image, build-optimised by Astro
+        // R2 object key for images served on the fly via the Cloudflare image
+        // Worker (see image-worker/). Use this instead of `image` for posts
+        // whose originals live in R2 rather than in the repo.
+        r2_key: z.string().optional(),
+        image_width: z.number().int().positive().optional(), // intrinsic px — prevents layout shift + upscaling
+        image_height: z.number().int().positive().optional(),
         image_alt: z.string().optional(), // required whenever an image is present
         description: z.string().optional(),
         post_type: z.enum(['photo', 'text', 'quote', 'link']).default('photo'),
@@ -31,14 +37,14 @@ const posts = defineCollection({
         source: z.string().optional(), // original creator, when known
         source_url: z.string().url().optional(), // link to the original source, when known
       })
-      // Photo posts must carry an image.
-      .refine((data) => data.post_type !== 'photo' || Boolean(data.image), {
-        message: 'Photo posts require an `image`.',
-        path: ['image'],
+      // Photo posts must carry an image — either a local `image` or an `r2_key`.
+      .refine((data) => data.post_type !== 'photo' || Boolean(data.image || data.r2_key), {
+        message: 'Photo posts require an `image` or an `r2_key`.',
+        path: ['r2_key'],
       })
       // Any post with an image must carry alt text (accessibility).
-      .refine((data) => !data.image || Boolean(data.image_alt), {
-        message: '`image_alt` is required whenever an `image` is set (accessibility).',
+      .refine((data) => (!data.image && !data.r2_key) || Boolean(data.image_alt), {
+        message: '`image_alt` is required whenever an image is present (accessibility).',
         path: ['image_alt'],
       }),
 });

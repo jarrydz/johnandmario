@@ -3,6 +3,7 @@ import { Image } from 'astro:assets';
 import { render } from 'astro:content';
 import type { CollectionEntry } from 'astro:content';
 import { withBase, formatDate } from '../utils';
+import RemoteImage from './RemoteImage.astro';
 
 interface Props {
   post: CollectionEntry<'posts'>;
@@ -11,21 +12,33 @@ interface Props {
 const { post } = Astro.props;
 const { Content } = await render(post);
 const href = withBase(`/posts/${post.id}`);
-const { title, image, image_alt, date, tags } = post.data;
+const { title, image, r2_key, image_width, image_height, image_alt, date, tags } =
+  post.data;
 ---
 
 <article class="post-card">
   {
-    image && (
+    (r2_key || image) && (
       <figure>
         <a href={href}>
-          <Image
-            src={image}
-            alt={image_alt ?? ''}
-            widths={[480, 720, 1080]}
-            sizes="(max-width: 720px) 100vw, 720px"
-            loading="lazy"
-          />
+          {r2_key ? (
+            <RemoteImage
+              src={r2_key}
+              alt={image_alt ?? ''}
+              width={image_width}
+              height={image_height}
+              sizes="(max-width: 720px) 100vw, 720px"
+              loading="lazy"
+            />
+          ) : (
+            <Image
+              src={image}
+              alt={image_alt ?? ''}
+              widths={[480, 720, 1080]}
+              sizes="(max-width: 720px) 100vw, 720px"
+              loading="lazy"
+            />
+          )}
         </a>
       </figure>
     )

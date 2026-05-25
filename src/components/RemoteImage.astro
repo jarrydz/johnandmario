@@ -1,0 +1,59 @@
+---
+/**
+ * Renders an image served by the Cloudflare image Worker (originals in R2,
+ * resized + re-encoded on the fly). Emits a <picture> with AVIF and WebP
+ * sources plus a JPEG <img> fallback.
+ *
+ * Widths are capped to the image's intrinsic width (when known) so we never
+ * request an upscale — which would also waste a billable transform.
+ */
+import { IMAGE_CDN_BASE, IMAGE_WIDTHS } from '../consts';
+
+interface Props {
+  src: string; // R2 object key, e.g. "00001_4943938579.jpg"
+  alt: string;
+  width?: number; // intrinsic px
+  height?: number; // intrinsic px
+  sizes?: string;
+  widths?: number[];
+  loading?: 'lazy' | 'eager';
+  fetchpriority?: 'high' | 'auto';
+}
+
+const {
+  src,
+  alt,
+  width,
+  height,
+  sizes = '(max-width: 720px) 100vw, 720px',
+  widths = IMAGE_WIDTHS,
+  loading = 'lazy',
+  fetchpriority,
+} = Astro.props;
+
+// Never request widths larger than the source.
+const usable = width ? widths.filter((w) => w <= width) : widths;
+const finalWidths = usable.length > 0 ? usable : [Math.min(...widths)];
+
+const encodeKey = (k: string) => k.split('/').map(encodeURIComponent).join('/');
+const buildUrl = (w: number, f: string) =>
+  `${IMAGE_CDN_BASE}/${encodeKey(src)}?w=${w}&f=${f}&q=80`;
+const srcset = (f: string) =>
+  finalWidths.map((w) => `${buildUrl(w, f)} ${w}w`).join(', ');
+
+const fallbackWidth = finalWidths[finalWidths.length - 1];
+---
+
+<picture>
+  <source type="image/avif" srcset={srcset('avif')} sizes={sizes} />
+  <source type="image/webp" srcset={srcset('webp')} sizes={sizes} />
+  <img
+    src={buildUrl(fallbackWidth, 'jpeg')}
+    alt={alt}
+    width={width}
+    height={height}
+    loading={loading}
+    decoding="async"
+    fetchpriority={fetchpriority}
+  />
+</picture>

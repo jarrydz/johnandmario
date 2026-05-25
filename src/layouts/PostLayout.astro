@@ -2,27 +2,49 @@
 import { Image } from 'astro:assets';
 import type { CollectionEntry } from 'astro:content';
 import Attribution from '../components/Attribution.astro';
+import RemoteImage from '../components/RemoteImage.astro';
 import { formatDate } from '../utils';
 
 interface Props {
   post: CollectionEntry<'posts'>;
 }
 
-const { post } = Astro.props;
-const { title, image, image_alt, date, tags, tumblr_url, source, source_url } =
-  post.data;
+const {
+  title,
+  image,
+  r2_key,
+  image_width,
+  image_height,
+  image_alt,
+  date,
+  tags,
+  tumblr_url,
+  source,
+  source_url,
+} = Astro.props.post.data;
 ---
 
 <article class="post-single">
   {
-    image && (
+    (r2_key || image) && (
       <figure>
-        <Image
-          src={image}
-          alt={image_alt ?? ''}
-          widths={[480, 720, 1080]}
-          sizes="(max-width: 720px) 100vw, 720px"
-        />
+        {r2_key ? (
+          <RemoteImage
+            src={r2_key}
+            alt={image_alt ?? ''}
+            width={image_width}
+            height={image_height}
+            sizes="(max-width: 720px) 100vw, 720px"
+            loading="eager"
+          />
+        ) : (
+          <Image
+            src={image}
+            alt={image_alt ?? ''}
+            widths={[480, 720, 1080]}
+            sizes="(max-width: 720px) 100vw, 720px"
+          />
+        )}
       </figure>
     )
   }

@@ -2,6 +2,7 @@
 import { getCollection } from 'astro:content';
 import { Image } from 'astro:assets';
 import BaseLayout from '../layouts/BaseLayout.astro';
+import RemoteImage from '../components/RemoteImage.astro';
 import { withBase } from '../utils';
 
 // A grid of every post as a thumbnail — Tumblr's /archive style.
@@ -22,7 +23,17 @@ const posts = (await getCollection('posts')).sort(
           href={withBase(`/posts/${post.id}`)}
           title={post.data.title ?? post.data.image_alt ?? ''}
         >
-          {post.data.image ? (
+          {post.data.r2_key ? (
+            <RemoteImage
+              src={post.data.r2_key}
+              alt={post.data.image_alt ?? ''}
+              width={post.data.image_width}
+              height={post.data.image_height}
+              widths={[320, 640]}
+              sizes="(max-width: 600px) 33vw, 180px"
+              loading="lazy"
+            />
+          ) : post.data.image ? (
             <Image src={post.data.image} alt={post.data.image_alt ?? ''} width={320} loading="lazy" />
           ) : (
             <span class="thumb-text">{post.data.title ?? post.data.post_type}</span>
