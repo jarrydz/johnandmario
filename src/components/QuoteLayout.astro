@@ -1,0 +1,58 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Epigram from './presets/Epigram.astro';
+import Literary from './presets/Literary.astro';
+import Technical from './presets/Technical.astro';
+import { withBase, quoteSlug } from '../utils';
+
+interface Props {
+  quote: CollectionEntry<'quotes'>;
+  prev?: CollectionEntry<'quotes'> | null;
+  next?: CollectionEntry<'quotes'> | null;
+}
+
+const { quote, prev, next } = Astro.props;
+const mood = quote.data.mood;
+
+// Phase 1 ships three presets; other moods fall back to Literary (the schema's
+// default). When new presets ship, add a case here.
+const Preset =
+  mood === 'epigram' ? Epigram : mood === 'technical' ? Technical : Literary;
+
+// Use a short body excerpt as the page title — quotes don't carry titles.
+const rawBody = (quote.body ?? '').replace(/\s+/g, ' ').trim();
+const TITLE_MAX = 60;
+const titleHint =
+  rawBody.length > TITLE_MAX ? rawBody.slice(0, TITLE_MAX).replace(/\s+\S*$/, '') + '…' : rawBody;
+const description = rawBody.slice(0, 200);
+---
+
+<BaseLayout title={titleHint} description={description} mood={mood}>
+  <div class="quote-layout">
+    <div class="quote-layout-main">
+      <Preset quote={quote} />
+    </div>
+    <nav class="quote-prev-next">
+      {
+        prev ? (
+          <a href={withBase(`/read/${quoteSlug(prev.id)}`)} rel="prev">
+            ← Newer
+          </a>
+        ) : (
+          <span class="spacer" />
+        )
+      }
+      <a href={withBase('/read')}>All quotes</a>
+      {
+        next ? (
+          <a href={withBase(`/read/${quoteSlug(next.id)}`)} rel="next">
+            Older →
+          </a>
+        ) : (
+          <span class="spacer" />
+        )
+      }
+    </nav>
+  </div>
+</BaseLayout>

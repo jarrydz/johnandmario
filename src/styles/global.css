@@ -1,3 +1,45 @@
+/* ---- Self-hosted variable fonts ----
+   Files in /public/fonts/ — served from /johnandmario/fonts/ in dev and prod
+   (the GitHub Pages project base path is hardcoded; see astro.config.mjs).
+   Latin subset only for now; revisit if a quote arrives that needs ext-Latin. */
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/johnandmario/fonts/inter-variable-latin.woff2') format('woff2-variations');
+}
+@font-face {
+  font-family: 'Source Serif 4';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/johnandmario/fonts/source-serif-4-variable-latin.woff2')
+    format('woff2-variations');
+}
+@font-face {
+  font-family: 'Source Serif 4';
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/johnandmario/fonts/source-serif-4-variable-latin-italic.woff2')
+    format('woff2-variations');
+}
+@font-face {
+  font-family: 'Monaspace Neon';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/johnandmario/fonts/monaspace-neon-400-latin.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Monaspace Neon';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/johnandmario/fonts/monaspace-neon-600-latin.woff2') format('woff2');
+}
+
 :root {
   --max-width: 720px;
   --color-bg: #fafaf8;
@@ -6,6 +48,74 @@
   --color-rule: #e5e5e1;
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
     Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  /* Display + reading typefaces — woff2 files in /public/fonts/.
+     Fallback stacks are deliberately strong so the site still feels designed
+     before the variable fonts finish loading (or if they fail). */
+  --font-serif: 'Source Serif 4', 'Iowan Old Style', 'Apple Garamond', Georgia,
+    'Times New Roman', serif;
+  --font-display: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    Roboto, sans-serif;
+  --font-mono: 'Monaspace Neon', ui-monospace, 'SFMono-Regular', 'Menlo', monospace;
+}
+
+/* ---- Mood preset palette tokens (Read mode) ----
+   Each preset bundles a background, foreground, and optional accent. Body
+   sets data-mood when a quote is in the immersive view; descendant elements
+   reference var(--bg) / var(--fg) / var(--accent) only. See design-system.md. */
+[data-mood='epigram'] {
+  --bg: #f8f6f2;
+  --fg: #0e0e0c;
+  --accent: #e8a33d;
+  --quote-font: var(--font-display);
+}
+[data-mood='literary'] {
+  --bg: #f4ece1;
+  --fg: #1a1612;
+  --accent: transparent;
+  --quote-font: var(--font-serif);
+}
+[data-mood='technical'] {
+  --bg: #0f1115;
+  --fg: #e8e8e8;
+  --accent: #50c878;
+  --quote-font: var(--font-mono);
+}
+[data-mood='cinematic'] {
+  --bg: #000;
+  --fg: #f0f0f0;
+  --accent: transparent;
+  --quote-font: var(--font-display);
+}
+[data-mood='handwritten'] {
+  --bg: #eee7d9;
+  --fg: #2c2620;
+  --accent: transparent;
+  --quote-font: var(--font-serif);
+}
+[data-mood='broadside'] {
+  --bg: #e63946;
+  --fg: #fff;
+  --accent: #ffd60a;
+  --quote-font: var(--font-display);
+}
+[data-mood='fragment'] {
+  --bg: #f2f0ec;
+  --fg: #1a1a1a;
+  --accent: #e63946;
+  --quote-font: var(--font-serif);
+}
+body[data-mood] {
+  background: var(--bg);
+  color: var(--fg);
+}
+body[data-mood] .site-header .site-title a,
+body[data-mood] .site-header nav a,
+body[data-mood] .site-footer a {
+  color: var(--fg);
+  opacity: 0.7;
+}
+body[data-mood] .site-footer {
+  border-top-color: color-mix(in srgb, var(--fg) 15%, transparent);
 }
 
 * {
@@ -347,6 +457,175 @@ main {
 .site-footer a {
   color: var(--color-muted);
   text-decoration: none;
+}
+
+/* ---- Portal (homepage) ---- */
+.site-header[data-minimal] {
+  padding: 2.5rem 0 1rem;
+}
+.site-header[data-minimal] .site-title {
+  font-size: 1.1rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--color-muted);
+}
+.portal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 12rem);
+  padding: 2rem 1.25rem 4rem;
+}
+.portal-doors {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(2rem, 6vh, 4.5rem);
+  align-items: center;
+}
+.portal-door {
+  display: block;
+  text-decoration: none;
+  text-align: center;
+  color: var(--color-text);
+  transition: transform 0.25s ease;
+}
+.portal-door:hover {
+  opacity: 1;
+  transform: translateY(-2px);
+}
+.portal-verb {
+  display: block;
+  font-family: var(--font-serif);
+  font-size: clamp(4rem, 16vw, 12rem);
+  font-weight: 400;
+  line-height: 0.95;
+  letter-spacing: -0.025em;
+  transition: opacity 0.25s ease;
+}
+.portal-door:hover .portal-verb {
+  opacity: 0.65;
+}
+.portal-hint {
+  display: block;
+  margin-top: 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  color: var(--color-muted);
+  text-transform: uppercase;
+}
+
+/* ---- Read mode — grid view ---- */
+.read-intro {
+  max-width: 38rem;
+  margin: 1rem 0 2.5rem;
+  font-family: var(--font-serif);
+  font-size: 1.15rem;
+  line-height: 1.5;
+  color: var(--color-muted);
+}
+.quote-grid {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+}
+@media (min-width: 720px) {
+  .quote-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+  }
+}
+.quote-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.5rem 1.5rem 1.25rem;
+  min-height: 12rem;
+  border: 1px solid var(--color-rule);
+  border-radius: 4px;
+  background: #fff;
+  text-decoration: none;
+  color: var(--color-text);
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+.quote-card:hover {
+  border-color: var(--color-muted);
+  opacity: 1;
+}
+.quote-card-body {
+  font-family: var(--font-serif);
+  font-size: 1.1rem;
+  line-height: 1.45;
+}
+.quote-card-meta {
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  color: var(--color-muted);
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.quote-card-mood {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.7rem;
+}
+.quote-card[data-mood='technical'] .quote-card-body {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+}
+.quote-card[data-mood='epigram'] .quote-card-body {
+  font-family: var(--font-display);
+  font-weight: 500;
+}
+
+/* ---- Read mode — immersive (shared chrome) ---- */
+.quote-layout {
+  min-height: calc(100vh - 6rem);
+  display: flex;
+  flex-direction: column;
+}
+.quote-layout-main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.5rem 3rem;
+}
+.quote-prev-next {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.5rem 2rem;
+  font-size: 0.85rem;
+  color: var(--color-muted);
+}
+.quote-prev-next a {
+  color: inherit;
+  text-decoration: none;
+  letter-spacing: 0.04em;
+}
+.quote-prev-next a:hover {
+  color: var(--fg, var(--color-text));
+  opacity: 1;
+}
+.quote-prev-next .spacer {
+  flex: 1;
+}
+
+/* The wide container the immersive presets break out into, when included. */
+.container-wide {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
 }
 
 @media (max-width: 600px) {

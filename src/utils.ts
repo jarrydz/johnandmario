@@ -20,3 +20,16 @@ export function formatDate(date: Date): string {
     day: 'numeric',
   });
 }
+
+/**
+ * Strip the YYYY-MM-DD date prefix from a quote id to produce its URL slug.
+ *
+ * Filenames keep the date prefix (filesystem sort + uniqueness). URLs don't —
+ * the date is filing metadata, not quote identity. See ADR 0013.
+ *
+ * Falls back to the unmodified id if no date prefix is present, so a quote
+ * filename like `random-thought.md` still produces a valid URL.
+ */
+export function quoteSlug(id: string): string {
+  return id.replace(/^\d{4}-\d{2}-\d{2}-/, '');
+}

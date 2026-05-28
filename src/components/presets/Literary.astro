@@ -1,0 +1,86 @@
+---
+import { render } from 'astro:content';
+import type { CollectionEntry } from 'astro:content';
+
+interface Props {
+  quote: CollectionEntry<'quotes'>;
+}
+
+const { quote } = Astro.props;
+const { Content } = await render(quote);
+const { attribution, source, source_url, source_year } = quote.data;
+const showAttribution = Boolean(attribution || source);
+---
+
+<article class="preset-literary">
+  <blockquote class="literary-body">
+    <Content />
+  </blockquote>
+  {
+    showAttribution && (
+      <footer class="literary-attribution">
+        {attribution && <p class="literary-author">{attribution}</p>}
+        {source && (
+          <p class="literary-source">
+            {source_url ? (
+              <a href={source_url} rel="noopener noreferrer">
+                {source}
+              </a>
+            ) : (
+              <span>{source}</span>
+            )}
+            {source_year && <span>, {source_year}</span>}
+          </p>
+        )}
+      </footer>
+    )
+  }
+</article>
+
+<style>
+  .preset-literary {
+    max-width: 60ch;
+    margin: 0 auto;
+    padding: clamp(3rem, 10vh, 6rem) 1.5rem;
+    text-align: center;
+    color: var(--fg);
+  }
+  .literary-body {
+    margin: 0;
+    font-family: var(--quote-font, var(--font-serif));
+    font-size: clamp(1.35rem, 2.4vw, 2rem);
+    font-weight: 400;
+    line-height: 1.55;
+    hanging-punctuation: first;
+    font-feature-settings: 'kern' 1, 'liga' 1, 'onum' 1;
+  }
+  .literary-body :global(p) {
+    margin: 0 0 1em;
+  }
+  .literary-body :global(p:last-child) {
+    margin-bottom: 0;
+  }
+  .literary-attribution {
+    margin-top: clamp(2.5rem, 7vh, 4rem);
+  }
+  .literary-author {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 0.78rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+  .literary-source {
+    margin: 0.45rem 0 0;
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 0.95rem;
+    color: var(--fg);
+    opacity: 0.65;
+  }
+  .literary-source a {
+    color: inherit;
+    text-underline-offset: 3px;
+  }
+</style>

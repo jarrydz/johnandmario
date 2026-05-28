@@ -1,0 +1,26 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { withBase } from '../utils';
+---
+
+<BaseLayout
+  description="A personal archive. Photographs and quotes — two ways to read."
+  minimal
+>
+  <main class="portal">
+    <ul class="portal-doors">
+      <li>
+        <a href={withBase('/look')} class="portal-door portal-door-look">
+          <span class="portal-verb">Look</span>
+          <span class="portal-hint">Photographs</span>
+        </a>
+      </li>
+      <li>
+        <a href={withBase('/read')} class="portal-door portal-door-read">
+          <span class="portal-verb">Read</span>
+          <span class="portal-hint">Quotes</span>
+        </a>
+      </li>
+    </ul>
+  </main>
+</BaseLayout>

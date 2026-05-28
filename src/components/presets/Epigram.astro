@@ -1,0 +1,88 @@
+---
+import { render } from 'astro:content';
+import type { CollectionEntry } from 'astro:content';
+
+interface Props {
+  quote: CollectionEntry<'quotes'>;
+}
+
+const { quote } = Astro.props;
+const { Content } = await render(quote);
+const { attribution, source, source_url, source_year } = quote.data;
+const showAttribution = Boolean(attribution || source);
+---
+
+<article class="preset-epigram">
+  <blockquote class="epigram-body">
+    <Content />
+  </blockquote>
+  {
+    showAttribution && (
+      <footer class="epigram-attribution">
+        {attribution && <span class="epigram-author">— {attribution}</span>}
+        {source && (
+          <span class="epigram-source">
+            {source_url ? (
+              <a href={source_url} rel="noopener noreferrer">
+                {source}
+              </a>
+            ) : (
+              <span>{source}</span>
+            )}
+            {source_year && <span>, {source_year}</span>}
+          </span>
+        )}
+      </footer>
+    )
+  }
+</article>
+
+<style>
+  .preset-epigram {
+    display: grid;
+    place-items: center;
+    text-align: center;
+    padding: clamp(3rem, 12vh, 7rem) 1.25rem;
+    min-height: 70vh;
+    width: 100%;
+  }
+  .epigram-body {
+    margin: 0;
+    font-family: var(--quote-font, var(--font-display));
+    font-size: clamp(2.5rem, 8.5vw, 7rem);
+    font-weight: 600;
+    line-height: 0.98;
+    letter-spacing: -0.025em;
+    max-width: 18ch;
+    color: var(--fg);
+  }
+  .epigram-body :global(p) {
+    margin: 0;
+  }
+  .epigram-body :global(p::first-letter) {
+    color: var(--accent, var(--fg));
+  }
+  .epigram-attribution {
+    margin-top: clamp(2rem, 6vh, 4rem);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4em 1em;
+    justify-content: flex-end;
+    font-family: var(--font-display);
+    font-size: 0.9rem;
+    letter-spacing: 0.08em;
+    color: var(--fg);
+    opacity: 0.7;
+    text-align: right;
+    align-self: end;
+    justify-self: end;
+  }
+  .epigram-attribution a {
+    color: inherit;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+  .epigram-source {
+    font-style: italic;
+  }
+</style>
