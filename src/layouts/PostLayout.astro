@@ -46,19 +46,20 @@ const {
             alt={image_alt ?? ''}
             widths={[480, 720, 1080]}
             sizes="(max-width: 720px) 100vw, 720px"
+            data-pagefind-meta="image[src]"
           />
         )}
       </figure>
     )
   }
   {title && <h1 class="post-title">{title}</h1>}
-  <div class="caption prose">
+  <div class="caption prose" data-pagefind-body>
     <slot />
     {description && <p class="post-description">{description}</p>}
   </div>
 
   <footer class="post-footer">
-    <p><time datetime={date.toISOString()}>{formatDate(date)}</time></p>
+    <p><time datetime={date.toISOString()} data-pagefind-meta="date">{formatDate(date)}</time></p>
     {tags && tags.length > 0 && <p class="tags-line"><Tags tags={tags} id={post.id} /></p>}
     <Attribution source={source} sourceUrl={source_url} />
     {

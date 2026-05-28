@@ -21,8 +21,8 @@ const moreCount = tags.length - limit;
     <span class="tags">
       {hasExtra && <input type="checkbox" id={toggleId} class="tags-toggle" />}
       {tags.map((t, i) => (
-        <span class:list={['tag', { 'tag-extra': i >= limit }]}>
-          {i > 0 && <span class="tag-sep">·</span>}
+        <span class:list={['tag', { 'tag-extra': i >= limit }]} data-pagefind-filter="tag">
+          {i > 0 && <span class="tag-sep" data-pagefind-ignore>·</span>}
           {t}
         </span>
       ))}

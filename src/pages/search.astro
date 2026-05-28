@@ -1,0 +1,223 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { withBase } from '../utils';
+
+const pagefindUrl = withBase('/pagefind/pagefind.js');
+const urlPrefix = import.meta.env.BASE_URL.replace(/\/$/, '');
+---
+
+<BaseLayout title="Search" description="Search the archive by description or tag.">
+  <h1>Search</h1>
+
+  <input
+    id="q"
+    class="search-input"
+    type="search"
+    placeholder="Search descriptions, alt text, tags…"
+    autocomplete="off"
+    autocapitalize="off"
+    spellcheck="false"
+  />
+
+  <div id="filters" class="filter-tags search-filters" aria-label="Filter by tag"></div>
+
+  <p id="empty" class="search-empty">Type to search the archive, or pick a tag.</p>
+  <p id="noresults" class="search-empty" hidden>No matches.</p>
+
+  <div id="results" class="search-results" aria-live="polite"></div>
+</BaseLayout>
+
+<style>
+  .search-input {
+    width: 100%;
+    font-family: inherit;
+    font-size: 1.05rem;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--color-rule);
+    border-radius: 4px;
+    background: var(--color-bg);
+    color: var(--color-text);
+    margin: 0.5rem 0 1.25rem;
+  }
+  .search-input:focus {
+    outline: none;
+    border-color: var(--color-muted);
+  }
+  .search-filters {
+    margin: 0 0 1.5rem;
+    max-height: 7.5rem;
+  }
+  .search-empty {
+    color: var(--color-muted);
+    font-size: 0.9rem;
+    margin: 1rem 0;
+  }
+  .search-results {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    margin: 1rem 0 3rem;
+  }
+  .search-result {
+    display: grid;
+    grid-template-columns: 96px 1fr;
+    gap: 1rem;
+    text-decoration: none;
+    color: inherit;
+  }
+  .search-result:hover {
+    opacity: 0.85;
+  }
+  .search-result .thumb {
+    aspect-ratio: 1 / 1;
+    overflow: hidden;
+    background: var(--color-rule);
+  }
+  .search-result .thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .search-result .meta {
+    font-size: 0.85rem;
+    color: var(--color-muted);
+    margin: 0 0 0.25rem;
+  }
+  .search-result .excerpt {
+    margin: 0 0 0.4rem;
+    font-size: 0.95rem;
+    line-height: 1.55;
+  }
+  .search-result .excerpt mark {
+    background: transparent;
+    color: var(--color-text);
+    font-weight: 600;
+    padding: 0;
+  }
+  .search-result .tags {
+    font-size: 0.8rem;
+  }
+  @media (max-width: 600px) {
+    .search-result {
+      grid-template-columns: 72px 1fr;
+      gap: 0.75rem;
+    }
+  }
+</style>
+
+<script is:inline define:vars={{ pagefindUrl, urlPrefix }}>
+  const q = document.getElementById('q');
+  const filtersEl = document.getElementById('filters');
+  const resultsEl = document.getElementById('results');
+  const emptyEl = document.getElementById('empty');
+  const noresultsEl = document.getElementById('noresults');
+
+  const active = new Set();
+  let pagefind = null;
+  let debounceTimer = null;
+
+  function escapeAttr(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+  }
+
+  function renderFilters(counts) {
+    const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    filtersEl.innerHTML = entries.map(([tag, count]) => {
+      const isActive = active.has(tag);
+      return `<button type="button" class="filter-tag${isActive ? ' active' : ''}" data-tag="${escapeAttr(tag)}">${escapeAttr(tag)}<span class="filter-tag-count">${count}</span></button>`;
+    }).join('');
+  }
+
+  function updateFilterCounts(counts) {
+    for (const btn of filtersEl.querySelectorAll('.filter-tag')) {
+      const tag = btn.dataset.tag;
+      const count = counts[tag] ?? 0;
+      const countEl = btn.querySelector('.filter-tag-count');
+      if (countEl) countEl.textContent = String(count);
+      btn.disabled = !active.has(tag) && count === 0;
+      btn.style.opacity = btn.disabled ? '0.4' : '';
+    }
+  }
+
+  async function runSearch() {
+    const term = q.value.trim();
+    const filters = active.size > 0 ? { tag: [...active] } : undefined;
+
+    if (!term && active.size === 0) {
+      resultsEl.innerHTML = '';
+      emptyEl.hidden = false;
+      noresultsEl.hidden = true;
+      const all = await pagefind.filters();
+      if (all && all.tag) renderFilters(all.tag);
+      return;
+    }
+
+    emptyEl.hidden = true;
+
+    const res = await pagefind.search(term || null, filters ? { filters } : undefined);
+    if (res.filters && res.filters.tag) updateFilterCounts(res.filters.tag);
+
+    const first = res.results.slice(0, 30);
+    const loaded = await Promise.all(first.map((r) => r.data()));
+
+    if (loaded.length === 0) {
+      resultsEl.innerHTML = '';
+      noresultsEl.hidden = false;
+      return;
+    }
+    noresultsEl.hidden = true;
+
+    resultsEl.innerHTML = loaded.map((d) => {
+      const raw = d.url || '';
+      const url = urlPrefix && raw.startsWith('/') && !raw.startsWith(urlPrefix + '/')
+        ? urlPrefix + raw
+        : raw;
+      const img = d.meta && d.meta.image ? d.meta.image : '';
+      const date = d.meta && d.meta.date ? d.meta.date : '';
+      const tagList = (d.filters && d.filters.tag) ? d.filters.tag : [];
+      const tags = tagList.map((t, i) =>
+        `${i > 0 ? '<span class="tag-sep">·</span>' : ''}<span class="tag">${escapeAttr(t)}</span>`
+      ).join('');
+      return `<a class="search-result" href="${escapeAttr(url)}">
+        <div class="thumb">${img ? `<img src="${escapeAttr(img)}" alt="" loading="lazy">` : ''}</div>
+        <div>
+          <p class="meta">${escapeAttr(date)}</p>
+          <p class="excerpt">${d.excerpt}</p>
+          ${tags ? `<span class="tags">${tags}</span>` : ''}
+        </div>
+      </a>`;
+    }).join('');
+  }
+
+  function debouncedSearch() {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(runSearch, 150);
+  }
+
+  (async () => {
+    pagefind = await import(pagefindUrl);
+    await pagefind.options({ excerptLength: 30 });
+    const all = await pagefind.filters();
+    if (all && all.tag) renderFilters(all.tag);
+
+    q.addEventListener('input', debouncedSearch);
+    filtersEl.addEventListener('click', (e) => {
+      const btn = e.target.closest('.filter-tag');
+      if (!btn) return;
+      const tag = btn.dataset.tag;
+      if (active.has(tag)) {
+        active.delete(tag);
+        btn.classList.remove('active');
+      } else {
+        active.add(tag);
+        btn.classList.add('active');
+      }
+      runSearch();
+    });
+  })().catch((err) => {
+    emptyEl.textContent = 'Search index not available — run `npm run build` first.';
+    console.error(err);
+  });
+</script>
