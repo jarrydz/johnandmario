@@ -4,7 +4,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import Epigram from './presets/Epigram.astro';
 import Literary from './presets/Literary.astro';
 import Technical from './presets/Technical.astro';
-import { withBase } from '../utils';
+import { withBase, quoteSlug } from '../utils';
 
 interface Props {
   quote: CollectionEntry<'quotes'>;
@@ -36,7 +36,7 @@ const description = rawBody.slice(0, 200);
     <nav class="quote-prev-next">
       {
         prev ? (
-          <a href={withBase(`/read/${prev.id}`)} rel="prev">
+          <a href={withBase(`/read/${quoteSlug(prev.id)}`)} rel="prev">
             ← Newer
           </a>
         ) : (
@@ -46,7 +46,7 @@ const description = rawBody.slice(0, 200);
       <a href={withBase('/read')}>All quotes</a>
       {
         next ? (
-          <a href={withBase(`/read/${next.id}`)} rel="next">
+          <a href={withBase(`/read/${quoteSlug(next.id)}`)} rel="next">
             Older →
           </a>
         ) : (

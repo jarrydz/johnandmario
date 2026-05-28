@@ -80,7 +80,7 @@ Examples:
 
 Date in filename = chronological sort in file listings = matches the `posts` convention.
 
-Slug should be short, hyphenated, lowercase. Identifies the quote in the URL: `/read/2026-05-28-didion-on-keeping-notebook`.
+Slug should be short, hyphenated, lowercase. The filename keeps the date prefix (filesystem sort + uniqueness) but the date is **stripped from the URL** — `2026-05-28-didion-on-keeping-notebook.md` serves at `/read/didion-on-keeping-notebook`. See [ADR 0013](adr/0013-quote-url-pattern.md).
 
 ## Phase 1 setup
 

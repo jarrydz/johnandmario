@@ -1,6 +1,6 @@
 ---
 import type { CollectionEntry } from 'astro:content';
-import { withBase } from '../utils';
+import { withBase, quoteSlug } from '../utils';
 
 interface Props {
   quote: CollectionEntry<'quotes'>;
@@ -8,7 +8,7 @@ interface Props {
 
 const { quote } = Astro.props;
 const { attribution, source, mood } = quote.data;
-const href = withBase(`/read/${quote.id}`);
+const href = withBase(`/read/${quoteSlug(quote.id)}`);
 
 // Build a short preview from the markdown body — first paragraph, hard-capped.
 const rawBody = (quote.body ?? '').replace(/\s+/g, ' ').trim();
