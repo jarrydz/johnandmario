@@ -1,12 +1,12 @@
 ---
 import { getCollection } from 'astro:content';
 import type { GetStaticPaths } from 'astro';
-import BaseLayout from '../layouts/BaseLayout.astro';
-import PostCard from '../components/PostCard.astro';
-import { POSTS_PER_PAGE, SITE_DESCRIPTION } from '../consts';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import PostCard from '../../components/PostCard.astro';
+import { POSTS_PER_PAGE, SITE_DESCRIPTION } from '../../consts';
 
-// Paginated, reverse-chronological home feed.
-// Page 1 is `/`, then `/2`, `/3`, … — explicit pagination, no infinite scroll.
+// Paginated, reverse-chronological photo feed at /look, /look/2, /look/3, …
+// Moved from `/` to `/look` when Read mode joined the site (see ADR 0002).
 export const getStaticPaths = (async ({ paginate }) => {
   const posts = (await getCollection('posts')).sort(
     (a, b) => b.data.date.valueOf() - a.data.date.valueOf(),
@@ -17,7 +17,7 @@ export const getStaticPaths = (async ({ paginate }) => {
 const { page } = Astro.props;
 ---
 
-<BaseLayout description={SITE_DESCRIPTION}>
+<BaseLayout title="Look" description={SITE_DESCRIPTION}>
   <main>
     {page.data.map((post) => <PostCard post={post} />)}
 

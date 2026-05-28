@@ -49,4 +49,36 @@ const posts = defineCollection({
       }),
 });
 
-export const collections = { posts };
+const quotes = defineCollection({
+  loader: glob({ pattern: '**/*.md', base: './src/content/quotes' }),
+  schema: ({ image }) =>
+    z
+      .object({
+        date: z.coerce.date(),
+        attribution: z.string().optional(),
+        source: z.string().optional(),
+        source_url: z.string().url().optional(),
+        source_year: z.number().int().optional(),
+        mood: z
+          .enum(['epigram', 'literary', 'cinematic', 'handwritten', 'technical', 'broadside', 'fragment'])
+          .default('literary'),
+        image: image().optional(),
+        r2_key: z.string().optional(),
+        image_width: z.number().int().positive().optional(),
+        image_height: z.number().int().positive().optional(),
+        image_alt: z.string().optional(),
+        image_position: z.enum(['backdrop', 'inline', 'none']).default('none'),
+        tags: z.array(z.string()).optional(),
+        lang: z.string().optional(),
+      })
+      .refine((data) => (!data.image && !data.r2_key) || Boolean(data.image_alt), {
+        message: '`image_alt` is required when an image is present.',
+        path: ['image_alt'],
+      })
+      .refine((data) => data.image_position === 'none' || Boolean(data.image || data.r2_key), {
+        message: '`image_position` requires an `image` or `r2_key`.',
+        path: ['image_position'],
+      }),
+});
+
+export const collections = { posts, quotes };

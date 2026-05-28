@@ -1,0 +1,98 @@
+---
+import { render } from 'astro:content';
+import type { CollectionEntry } from 'astro:content';
+
+interface Props {
+  quote: CollectionEntry<'quotes'>;
+}
+
+const { quote } = Astro.props;
+const { Content } = await render(quote);
+const { attribution, source, source_url, source_year } = quote.data;
+const showAttribution = Boolean(attribution || source);
+---
+
+<article class="preset-technical">
+  <div class="technical-body">
+    <Content />
+  </div>
+  {
+    showAttribution && (
+      <footer class="technical-attribution">
+        {attribution && (
+          <p class="technical-author">
+            <span class="technical-prefix">//</span> — {attribution}
+            <span class="technical-cursor" aria-hidden="true">_</span>
+          </p>
+        )}
+        {source && (
+          <p class="technical-source">
+            <span class="technical-prefix">//</span>{' '}
+            {source_url ? (
+              <a href={source_url} rel="noopener noreferrer">
+                {source}
+              </a>
+            ) : (
+              <span>{source}</span>
+            )}
+            {source_year && <span>, {source_year}</span>}
+          </p>
+        )}
+      </footer>
+    )
+  }
+</article>
+
+<style>
+  .preset-technical {
+    max-width: 64ch;
+    margin: 0 auto;
+    padding: clamp(3rem, 10vh, 6rem) 1.5rem;
+    font-family: var(--quote-font, var(--font-mono));
+    color: var(--fg);
+  }
+  .technical-body {
+    font-size: clamp(1rem, 1.5vw, 1.25rem);
+    line-height: 1.55;
+    letter-spacing: -0.005em;
+  }
+  .technical-body :global(p) {
+    margin: 0 0 1em;
+  }
+  .technical-body :global(p:last-child) {
+    margin-bottom: 0;
+  }
+  .technical-attribution {
+    margin-top: 2.5rem;
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+  .technical-author,
+  .technical-source {
+    margin: 0;
+  }
+  .technical-prefix {
+    color: var(--accent, var(--fg));
+  }
+  .technical-attribution a {
+    color: inherit;
+    text-decoration-color: var(--accent, currentColor);
+    text-underline-offset: 3px;
+  }
+  .technical-cursor {
+    display: inline-block;
+    margin-left: 0.3em;
+    color: var(--accent, var(--fg));
+    animation: technical-blink 1.05s steps(2, jump-none) infinite;
+  }
+  @keyframes technical-blink {
+    to {
+      opacity: 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .technical-cursor {
+      animation: none;
+    }
+  }
+</style>

@@ -1,0 +1,24 @@
+---
+import { getCollection } from 'astro:content';
+import type { GetStaticPaths } from 'astro';
+import QuoteLayout from '../../components/QuoteLayout.astro';
+import { quoteSlug } from '../../utils';
+
+export const getStaticPaths = (async () => {
+  const all = (await getCollection('quotes')).sort(
+    (a, b) => b.data.date.valueOf() - a.data.date.valueOf(),
+  );
+  return all.map((quote, i) => ({
+    params: { slug: quoteSlug(quote.id) },
+    props: {
+      quote,
+      prev: all[i - 1] ?? null,
+      next: all[i + 1] ?? null,
+    },
+  }));
+}) satisfies GetStaticPaths;
+
+const { quote, prev, next } = Astro.props;
+---
+
+<QuoteLayout quote={quote} prev={prev} next={next} />
