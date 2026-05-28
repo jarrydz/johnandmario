@@ -34,5 +34,10 @@ blog-image-index.xlsx
 # project brief (working doc, not part of the site)
 BRIEF.md
 
-# vault docs symlinked in for editor / AI context (source of truth lives in the Obsidian vault)
-docs/
+# Top-level working docs (architecture, authoring, build-plan, content-model,
+# design-system) live in docs/ and ARE tracked — the README points to them.
+# Two exceptions stay local-only:
+#   - docs/adr is a symlink to the Obsidian vault (canonical ADR store there)
+#   - docs/handoff-claude-code.md is a transient process doc, not user-facing
+docs/adr
+docs/handoff-claude-code.md
