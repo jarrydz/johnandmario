@@ -1,0 +1,21 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import QuoteCard from '../../components/QuoteCard.astro';
+
+const quotes = (await getCollection('quotes')).sort(
+  (a, b) => b.data.date.valueOf() - a.data.date.valueOf(),
+);
+---
+
+<BaseLayout title="Read" description="A reading archive — quotes worth keeping.">
+  <main>
+    <p class="read-intro">
+      Quotes worth keeping. Each lives in a typographic mood that suits its tone — open one to see it
+      breathe.
+    </p>
+    <ul class="quote-grid">
+      {quotes.map((quote) => <QuoteCard quote={quote} />)}
+    </ul>
+  </main>
+</BaseLayout>

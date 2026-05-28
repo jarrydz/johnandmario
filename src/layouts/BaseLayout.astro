@@ -6,9 +6,13 @@ import Footer from '../components/Footer.astro';
 interface Props {
   title?: string;
   description?: string;
+  /** Portal-style chrome: wordmark only, no nav, no width-constrained container. */
+  minimal?: boolean;
+  /** Optional data-mood attribute on <body> for mood-preset CSS variable scoping. */
+  mood?: string;
 }
 
-const { title, description } = Astro.props;
+const { title, description, minimal = false, mood } = Astro.props;
 ---
 
 <!doctype html>
@@ -16,11 +20,9 @@ const { title, description } = Astro.props;
   <head>
     <BaseHead title={title} description={description} />
   </head>
-  <body>
-    <Header />
-    <div class="container">
-      <slot />
-    </div>
-    <Footer />
+  <body data-mood={mood}>
+    <Header minimal={minimal} />
+    {minimal ? <slot /> : <div class="container"><slot /></div>}
+    <Footer minimal={minimal} />
   </body>
 </html>
