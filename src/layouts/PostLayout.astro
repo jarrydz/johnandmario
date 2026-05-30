@@ -4,7 +4,7 @@ import type { CollectionEntry } from 'astro:content';
 import Attribution from '../components/Attribution.astro';
 import RemoteImage from '../components/RemoteImage.astro';
 import Tags from '../components/Tags.astro';
-import { formatDate } from '../utils';
+import { formatDate, withBase } from '../utils';
 
 interface Props {
   post: CollectionEntry<'posts'>;
@@ -73,3 +73,28 @@ const {
     }
   </footer>
 </article>
+
+<a href={withBase('/look')} class="post-back">Back</a>
+
+<style>
+  /* Bottom-left return link to the Look feed, mirroring the header/theme-toggle
+     chrome (same font, weight, size, and edge padding). */
+  .post-back {
+    position: fixed;
+    z-index: 100;
+    bottom: 0;
+    left: 0;
+    padding: clamp(1.1rem, 3vw, 1.8rem) var(--pad-x);
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: 0.95rem;
+    letter-spacing: 0.01em;
+    line-height: 1;
+    color: var(--fg, var(--color-text));
+    text-decoration: none;
+    transition: opacity 0.2s ease;
+  }
+  .post-back:hover {
+    opacity: 0.6;
+  }
+</style>
