@@ -15,10 +15,25 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
 
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<script is:inline>
+  (function () {
+    try {
+      if (localStorage.getItem('theme') === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light');
+      }
+    } catch (e) {}
+  })();
+</script>
 <title>{pageTitle}</title>
 {description && <meta name="description" content={description} />}
 <link rel="canonical" href={canonical} />
 <link rel="icon" type="image/svg+xml" href={withBase('/favicon.svg')} />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap"
+/>
 <link
   rel="alternate"
   type="application/rss+xml"

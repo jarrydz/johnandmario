@@ -8,19 +8,78 @@ import { withBase } from '../utils';
   minimal
 >
   <main class="portal">
-    <ul class="portal-doors">
-      <li>
-        <a href={withBase('/look')} class="portal-door portal-door-look">
-          <span class="portal-verb">Look</span>
-          <span class="portal-hint">Photographs</span>
-        </a>
-      </li>
-      <li>
-        <a href={withBase('/read')} class="portal-door portal-door-read">
-          <span class="portal-verb">Read</span>
-          <span class="portal-hint">Quotes</span>
-        </a>
-      </li>
-    </ul>
+    <nav class="portal-nav">
+      <a href={withBase('/look')} class="portal-link" data-tag="Photographs">Look</a>
+      <a href={withBase('/read')} class="portal-link" data-tag="Quotes">Read</a>
+      <a href={withBase('/words')} class="portal-link" data-tag="Writing">Words</a>
+    </nav>
   </main>
 </BaseLayout>
+
+<style>
+  .portal {
+    position: fixed;
+    inset: 0;
+    padding: var(--pad-x);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  .portal-nav {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: clamp(0.1rem, 1vh, 0.6rem);
+    max-width: 100%;
+  }
+  .portal-link {
+    position: relative;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: clamp(3.5rem, 15vw, 9.6rem);
+    line-height: 0.95;
+    max-width: 100%;
+    letter-spacing: -0.035em;
+    text-transform: uppercase;
+    color: var(--color-text);
+    text-decoration: none;
+    transition: opacity 0.2s ease;
+  }
+  /* Small serif annotations offset to alternating sides, like an editorial layout. */
+  .portal-link::after {
+    content: attr(data-tag);
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: var(--font-serif);
+    font-weight: 400;
+    font-size: clamp(0.7rem, 1.1vw, 0.95rem);
+    letter-spacing: 0.02em;
+    text-transform: none;
+    white-space: nowrap;
+    color: var(--color-muted);
+    pointer-events: none;
+  }
+  .portal-link:nth-child(odd)::after {
+    left: calc(100% + clamp(0.75rem, 2vw, 1.75rem));
+  }
+  .portal-link:nth-child(even)::after {
+    right: calc(100% + clamp(0.75rem, 2vw, 1.75rem));
+  }
+  .portal-link:hover {
+    font-family: 'Didot', 'Hoefler Text', 'Playfair Display', Georgia, serif;
+    font-weight: 500;
+    font-style: italic;
+    text-transform: none;
+    opacity: 1;
+    color: var(--color-text);
+  }
+  /* On phones the serif side-labels crowd the big type and overflow the
+     viewport, so drop them and let the words carry the page on their own. */
+  @media (max-width: 640px) {
+    .portal-link::after {
+      display: none;
+    }
+  }
+</style>

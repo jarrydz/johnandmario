@@ -1,22 +1,69 @@
 ---
-import { SITE_TITLE } from '../consts';
+import { GITHUB_REPO } from '../consts';
 import { withBase } from '../utils';
-
-interface Props {
-  minimal?: boolean;
-}
-
-const { minimal = false } = Astro.props;
 ---
 
-<header class="site-header" data-minimal={minimal ? '' : undefined}>
-  <p class="site-title"><a href={withBase('/')}>{SITE_TITLE}</a></p>
-  {
-    !minimal && (
-      <nav>
-        <a href={withBase('/look')}>Look</a> · <a href={withBase('/read')}>Read</a> ·{' '}
-        <a href={withBase('/about')}>About</a>
-      </nav>
-    )
-  }
+<input
+  type="checkbox"
+  id="site-menu-toggle"
+  class="site-menu-toggle"
+  aria-hidden="true"
+/>
+<header class="site-header">
+  <a href={withBase('/')} class="site-wordmark">John and Mario</a>
+  <label
+    for="site-menu-toggle"
+    class="site-menu-button"
+    role="button"
+    aria-label="Toggle menu"
+  >
+    <span class="label-open">Menu</span>
+    <span class="label-close">Close</span>
+  </label>
 </header>
+<nav class="site-menu" aria-label="Primary">
+  <ul class="site-menu-list">
+    <li><a href={withBase('/look')}>Look</a></li>
+    <li><a href={withBase('/read')}>Read</a></li>
+    <li><a href={withBase('/about')}>About</a></li>
+    <li><a href={withBase('/search')}>Search</a></li>
+    <li><a href={withBase('/archive')}>Archive</a></li>
+    <li><a href={GITHUB_REPO} rel="noopener noreferrer">GitHub</a></li>
+    <li><a href={withBase('/rss.xml')}>RSS</a></li>
+  </ul>
+</nav>
+<button
+  id="theme-toggle"
+  class="theme-toggle"
+  type="button"
+  aria-label="Toggle colour theme"
+>
+  Dark
+</button>
+
+<script>
+  const btn = document.getElementById('theme-toggle');
+  const root = document.documentElement;
+  const sync = () => {
+    if (btn) {
+      btn.textContent =
+        root.getAttribute('data-theme') === 'light' ? 'Light' : 'Dark';
+    }
+  };
+  btn?.addEventListener('click', () => {
+    const isLight = root.getAttribute('data-theme') === 'light';
+    if (isLight) {
+      root.removeAttribute('data-theme');
+      try {
+        localStorage.setItem('theme', 'dark');
+      } catch (e) {}
+    } else {
+      root.setAttribute('data-theme', 'light');
+      try {
+        localStorage.setItem('theme', 'light');
+      } catch (e) {}
+    }
+    sync();
+  });
+  sync();
+</script>
