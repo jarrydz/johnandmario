@@ -1,6 +1,16 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { getCollection } from 'astro:content';
 import { withBase } from '../utils';
+import { IMAGE_CDN_BASE } from '../consts';
+
+// A pool of random photo keys baked at build time; the client reshuffles and
+// picks 20 on each load so the intro reel varies between visits.
+const candidates = (await getCollection('posts'))
+  .filter((p) => p.data.r2_key)
+  .sort(() => Math.random() - 0.5)
+  .slice(0, 80)
+  .map((p) => p.data.r2_key as string);
 ---
 
 <BaseLayout
@@ -13,8 +23,74 @@ import { withBase } from '../utils';
       <a href={withBase('/read')} class="portal-link" data-tag="Quotes">Read</a>
       <a href={withBase('/words')} class="portal-link" data-tag="Writing">Words</a>
     </nav>
+    <div class="intro-reel" id="intro-reel" aria-hidden="true">
+      <img class="intro-reel-img" alt="" decoding="async" />
+    </div>
   </main>
 </BaseLayout>
+
+<script define:vars={{ candidates, cdnBase: IMAGE_CDN_BASE }}>
+  (function () {
+    const reel = document.getElementById('intro-reel');
+    const nav = document.querySelector('.portal-nav');
+    if (!reel) return;
+    const img = reel.querySelector('img');
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // No JS-driven intro: leave the words visible and drop the reel.
+    if (reduce || !img || !candidates || candidates.length === 0) {
+      reel.remove();
+      return;
+    }
+
+    // Hide the words while the images play; reveal them once the reel ends.
+    if (nav) nav.dataset.intro = 'hidden';
+
+    const enc = (k) => k.split('/').map(encodeURIComponent).join('/');
+    const url = (k) => `${cdnBase}/${enc(k)}?w=640&f=webp&q=80`;
+
+    // Fisher–Yates shuffle, then take 20.
+    const pool = candidates.slice();
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    const picks = pool.slice(0, 20).map(url);
+    picks.forEach((u) => {
+      const pre = new Image();
+      pre.src = u;
+    });
+
+    const FRAME = 150;
+    let i = 0;
+    reel.classList.add('is-active');
+
+    function finish() {
+      // Last image has landed — fade the reel and write the words up.
+      reel.classList.add('is-done');
+      if (nav) nav.dataset.intro = 'in';
+      setTimeout(() => reel.remove(), 600);
+    }
+
+    function tick() {
+      img.src = picks[i];
+      img.animate(
+        [
+          { transform: 'translateY(45%)', opacity: 0 },
+          { transform: 'translateY(0)', opacity: 1 },
+        ],
+        { duration: FRAME, easing: 'ease-out' },
+      );
+      i++;
+      if (i < picks.length) {
+        setTimeout(tick, FRAME);
+      } else {
+        setTimeout(finish, 280);
+      }
+    }
+    tick();
+  })();
+</script>
 
 <style>
   .portal {
@@ -75,11 +151,63 @@ import { withBase } from '../utils';
     opacity: 1;
     color: var(--color-text);
   }
+
+  /* Words start hidden while the image reel plays, then "write up" into place
+     once the last image lands (data-intro is driven by the script). */
+  .portal-nav[data-intro='hidden'] .portal-link {
+    opacity: 0;
+    transform: translateY(0.7em);
+  }
+  .portal-nav[data-intro='in'] .portal-link {
+    opacity: 1;
+    transform: translateY(0);
+    transition:
+      opacity 0.55s ease,
+      transform 0.65s cubic-bezier(0.2, 0.75, 0.2, 1);
+  }
+  .portal-nav[data-intro='in'] .portal-link:nth-child(1) {
+    transition-delay: 0s;
+  }
+  .portal-nav[data-intro='in'] .portal-link:nth-child(2) {
+    transition-delay: 0.12s;
+  }
+  .portal-nav[data-intro='in'] .portal-link:nth-child(3) {
+    transition-delay: 0.24s;
+  }
   /* On phones the serif side-labels crowd the big type and overflow the
      viewport, so drop them and let the words carry the page on their own. */
   @media (max-width: 640px) {
     .portal-link::after {
       display: none;
     }
+  }
+
+  /* Intro reel — flicks through 20 random photos in the centre on load. */
+  .intro-reel {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 60;
+    width: clamp(208px, 26vw, 300px);
+    aspect-ratio: 5 / 6;
+    overflow: hidden;
+    border-radius: 2px;
+    pointer-events: none;
+    opacity: 0;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+  }
+  .intro-reel.is-active {
+    opacity: 1;
+  }
+  .intro-reel.is-done {
+    opacity: 0;
+    transition: opacity 0.45s ease;
+  }
+  .intro-reel-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
   }
 </style>
