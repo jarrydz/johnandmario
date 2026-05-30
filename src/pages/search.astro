@@ -20,6 +20,7 @@ const urlPrefix = import.meta.env.BASE_URL.replace(/\/$/, '');
   />
 
   <div id="filters" class="filter-tags search-filters" aria-label="Filter by tag"></div>
+  <button id="filters-toggle" class="filter-toggle" type="button" hidden>Show more tags</button>
 
   <p id="empty" class="search-empty">Type to search the archive, or pick a tag.</p>
   <p id="noresults" class="search-empty" hidden>No matches.</p>
@@ -44,8 +45,24 @@ const urlPrefix = import.meta.env.BASE_URL.replace(/\/$/, '');
     border-color: var(--color-muted);
   }
   .search-filters {
+    margin: 0 0 0.75rem;
+    max-height: none;
+    overflow: visible;
+  }
+  .filter-toggle {
+    font-family: inherit;
+    font-size: 0.8rem;
+    padding: 0;
     margin: 0 0 1.5rem;
-    max-height: 7.5rem;
+    border: 0;
+    background: none;
+    color: var(--color-muted);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+  .filter-toggle:hover {
+    color: var(--color-text);
   }
   .search-empty {
     color: var(--color-muted);
@@ -108,6 +125,7 @@ const urlPrefix = import.meta.env.BASE_URL.replace(/\/$/, '');
 <script is:inline define:vars={{ pagefindUrl, urlPrefix }}>
   const q = document.getElementById('q');
   const filtersEl = document.getElementById('filters');
+  const filtersToggle = document.getElementById('filters-toggle');
   const resultsEl = document.getElementById('results');
   const emptyEl = document.getElementById('empty');
   const noresultsEl = document.getElementById('noresults');
@@ -116,6 +134,12 @@ const urlPrefix = import.meta.env.BASE_URL.replace(/\/$/, '');
   let pagefind = null;
   let debounceTimer = null;
 
+  // Collapse the (long) tag list to a couple of rows until the reader asks for
+  // more, so it never clips mid-row.
+  const FILTER_COLLAPSED = 18;
+  let filtersExpanded = false;
+  let lastFilterCounts = {};
+
   function escapeAttr(s) {
     return String(s).replace(/[&<>"']/g, (c) => ({
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -123,11 +147,31 @@ const urlPrefix = import.meta.env.BASE_URL.replace(/\/$/, '');
   }
 
   function renderFilters(counts) {
+    lastFilterCounts = counts;
     const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-    filtersEl.innerHTML = entries.map(([tag, count]) => {
+
+    let visible = entries;
+    if (!filtersExpanded && entries.length > FILTER_COLLAPSED) {
+      visible = entries.slice(0, FILTER_COLLAPSED);
+      // Keep any selected tag visible even if it falls past the cut-off.
+      for (const entry of entries) {
+        if (active.has(entry[0]) && !visible.includes(entry)) visible.push(entry);
+      }
+    }
+
+    filtersEl.innerHTML = visible.map(([tag, count]) => {
       const isActive = active.has(tag);
       return `<button type="button" class="filter-tag${isActive ? ' active' : ''}" data-tag="${escapeAttr(tag)}">${escapeAttr(tag)}<span class="filter-tag-count">${count}</span></button>`;
     }).join('');
+
+    if (entries.length > FILTER_COLLAPSED) {
+      filtersToggle.hidden = false;
+      filtersToggle.textContent = filtersExpanded
+        ? 'Show fewer tags'
+        : `Show more tags (${entries.length - FILTER_COLLAPSED})`;
+    } else {
+      filtersToggle.hidden = true;
+    }
   }
 
   function updateFilterCounts(counts) {
@@ -203,6 +247,10 @@ const urlPrefix = import.meta.env.BASE_URL.replace(/\/$/, '');
     if (all && all.tag) renderFilters(all.tag);
 
     q.addEventListener('input', debouncedSearch);
+    filtersToggle.addEventListener('click', () => {
+      filtersExpanded = !filtersExpanded;
+      renderFilters(lastFilterCounts);
+    });
     filtersEl.addEventListener('click', (e) => {
       const btn = e.target.closest('.filter-tag');
       if (!btn) return;
