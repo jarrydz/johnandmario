@@ -1,0 +1,347 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import RemoteImage from '../../components/RemoteImage.astro';
+import { withBase } from '../../utils';
+import { IMAGE_CDN_BASE, IMAGE_WIDTHS, SITE_DESCRIPTION } from '../../consts';
+import { getLookItems, lookPageCount, LOOK_CHUNK } from '../../lib/lookFeed';
+
+// Reverse-chronological photo archive with client-side infinite scroll.
+// The first chunk is inlined (instant paint + <noscript> fallback); further
+// chunks are fetched as static JSON from /look/feed/<n>.json while scrolling.
+const items = await getLookItems();
+const lastPage = lookPageCount(items.length);
+const firstChunk = items.slice(0, LOOK_CHUNK);
+---
+
+<BaseLayout title="Look" description={SITE_DESCRIPTION}>
+  <main>
+    <div class="look-bleed">
+      <div class="look-grid" id="look-grid" data-cols="3" aria-label="Photographs"></div>
+    </div>
+
+    <div class="look-status" id="look-status" aria-live="polite"></div>
+    <div id="look-sentinel" aria-hidden="true"></div>
+
+    <noscript>
+      <div class="look-fallback">
+        {
+          firstChunk.map((item) => (
+            <a href={withBase(`/posts/${item.id}`)} class="look-item">
+              <RemoteImage
+                src={item.key}
+                alt={item.alt}
+                width={item.w}
+                height={item.h}
+                sizes="(max-width: 720px) 50vw, 240px"
+                loading="lazy"
+              />
+            </a>
+          ))
+        }
+      </div>
+    </noscript>
+  </main>
+
+  <div class="look-zoom" role="group" aria-label="Grid density">
+    <button type="button" id="look-more" aria-label="More columns">More</button>
+    <button type="button" id="look-less" aria-label="Fewer columns">Less</button>
+  </div>
+</BaseLayout>
+
+<script
+  define:vars={{
+    bootstrap: firstChunk,
+    lastPage,
+    cdnBase: IMAGE_CDN_BASE,
+    imageWidths: IMAGE_WIDTHS,
+    feedBase: withBase('/look/feed'),
+    postsBase: withBase('/posts'),
+  }}
+>
+  (function () {
+    const grid = document.getElementById('look-grid');
+    const sentinel = document.getElementById('look-sentinel');
+    const status = document.getElementById('look-status');
+    const more = document.getElementById('look-more');
+    const less = document.getElementById('look-less');
+    if (!grid || !sentinel) return;
+
+    const MIN = 1;
+    const MAX = 8;
+    const DEFAULT_COLS = 3;
+    // Grid width as a share of the page, indexed by column count (1–8).
+    const WIDTH_PCT = { 1: 50, 2: 66, 3: 80, 4: 88, 5: 93, 6: 97, 7: 100, 8: 100 };
+
+    // Below this width a multi-column grid is unreadable, so collapse to one
+    // column regardless of the chosen density.
+    const mqSingle = window.matchMedia('(max-width: 600px)');
+    const renderCols = () => (mqSingle.matches ? 1 : cols);
+
+    const clampCols = (n) => Math.min(MAX, Math.max(MIN, n));
+    const enc = (k) => k.split('/').map(encodeURIComponent).join('/');
+    const url = (k, w, f) => `${cdnBase}/${enc(k)}?w=${w}&f=${f}&q=80`;
+    const usableWidths = (w) => {
+      const ws = w ? imageWidths.filter((x) => x <= w) : imageWidths;
+      return ws.length ? ws : [Math.min(...imageWidths)];
+    };
+    const srcset = (k, f, w) =>
+      usableWidths(w)
+        .map((x) => `${url(k, x, f)} ${x}w`)
+        .join(', ');
+
+    // In-memory feed + masonry bookkeeping.
+    const items = bootstrap.slice();
+    let nextPage = 2;
+    let cols = 3;
+    let columns = []; // { el, height } — height is a unitless aspect-ratio sum
+    let loading = false;
+    let done = nextPage > lastPage;
+
+    // Sizes hint reflects the *current* tile width so we never over-fetch when
+    // zoomed out (8-up) or under-fetch when zoomed in (1-up).
+    const sizesAttr = () => {
+      const n = renderCols();
+      const desktop = Math.max(8, Math.round((WIDTH_PCT[cols] || 80) / n));
+      const mobile = Math.max(20, Math.round(100 / n));
+      return `(max-width: 720px) ${mobile}vw, ${desktop}vw`;
+    };
+
+    const makeTile = (item, sizes) => {
+      const a = document.createElement('a');
+      a.href = `${postsBase}/${item.id}`;
+      a.className = 'look-item';
+
+      const picture = document.createElement('picture');
+      const avif = document.createElement('source');
+      avif.type = 'image/avif';
+      avif.srcset = srcset(item.key, 'avif', item.w);
+      avif.sizes = sizes;
+      const webp = document.createElement('source');
+      webp.type = 'image/webp';
+      webp.srcset = srcset(item.key, 'webp', item.w);
+      webp.sizes = sizes;
+
+      const fallbackWidths = usableWidths(item.w);
+      const img = document.createElement('img');
+      img.src = url(item.key, fallbackWidths[fallbackWidths.length - 1], 'jpeg');
+      img.alt = item.alt || '';
+      if (item.w) img.width = item.w;
+      if (item.h) img.height = item.h;
+      img.loading = 'lazy';
+      img.decoding = 'async';
+
+      picture.append(avif, webp, img);
+      a.append(picture);
+      return a;
+    };
+
+    // Append one tile to whichever column is currently shortest, using the
+    // known aspect ratio so we never have to wait for images to load.
+    const placeTile = (item, sizes) => {
+      let target = 0;
+      for (let i = 1; i < columns.length; i++) {
+        if (columns[i].height < columns[target].height) target = i;
+      }
+      columns[target].el.append(makeTile(item, sizes));
+      const ratio = item.w && item.h ? item.h / item.w : 1.25;
+      columns[target].height += ratio;
+    };
+
+    // (Re)build the column scaffold and lay out everything we have so far.
+    // Called on first render and whenever the column count changes.
+    const relayout = () => {
+      const n = renderCols();
+      grid.dataset.cols = String(n);
+      grid.style.setProperty('--look-w', `${WIDTH_PCT[cols] || 80}%`);
+      grid.replaceChildren();
+      columns = [];
+      for (let i = 0; i < n; i++) {
+        const col = document.createElement('div');
+        col.className = 'look-col';
+        grid.append(col);
+        columns.push({ el: col, height: 0 });
+      }
+      const sizes = sizesAttr();
+      for (const item of items) placeTile(item, sizes);
+    };
+
+    const setStatus = (text) => {
+      if (status) status.textContent = text;
+    };
+
+    const loadMore = async () => {
+      if (loading || done) return;
+      loading = true;
+      setStatus('Loading…');
+      try {
+        const res = await fetch(`${feedBase}/${nextPage}.json`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const sizes = sizesAttr();
+        for (const item of data.items) {
+          items.push(item);
+          placeTile(item, sizes);
+        }
+        nextPage += 1;
+        if (nextPage > (data.last || lastPage)) {
+          done = true;
+          observer.disconnect();
+          setStatus('');
+        } else {
+          setStatus('');
+        }
+      } catch (e) {
+        // Leave the sentinel observed so a later scroll retries the fetch.
+        setStatus('Could not load more — scroll to retry.');
+      } finally {
+        loading = false;
+        // The viewport may still be short (e.g. zoomed out): keep filling.
+        if (!done && isSentinelNear()) loadMore();
+      }
+    };
+
+    const isSentinelNear = () => {
+      const rect = sentinel.getBoundingClientRect();
+      return rect.top < window.innerHeight + 800;
+    };
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) loadMore();
+      },
+      { rootMargin: '800px 0px' },
+    );
+
+    const setCols = (n) => {
+      cols = clampCols(n);
+      if (less) less.disabled = cols <= MIN;
+      if (more) more.disabled = cols >= MAX;
+      relayout();
+      if (!done && isSentinelNear()) loadMore();
+    };
+
+    // Always start at three columns; the reader adjusts with More/Less.
+    setCols(DEFAULT_COLS);
+    if (done) setStatus('');
+    observer.observe(sentinel);
+
+    // Re-lay out when crossing the single-column breakpoint.
+    mqSingle.addEventListener('change', () => {
+      relayout();
+      if (!done && isSentinelNear()) loadMore();
+    });
+
+    more && more.addEventListener('click', () => setCols(cols + 1));
+    less && less.addEventListener('click', () => setCols(cols - 1));
+  })();
+</script>
+
+<style>
+  main {
+    padding-bottom: 5rem;
+  }
+
+  /* Break out of the 720px container so the gallery can use the full page.
+     The inner grid is then centred and sized as a share of the viewport. */
+  .look-bleed {
+    width: 100vw;
+    margin-left: calc(50% - 50vw);
+  }
+
+  /* Masonry built from flex columns (one <div class="look-col"> per column).
+     Tiles are placed into the shortest column by JS, so appending new chunks
+     never reflows what's already on screen. Width grows with the column count:
+     a single column sits at ~half the page; 7–8 columns span the whole width. */
+  .look-grid {
+    --look-gap: 8px;
+    --look-w: 80%;
+    width: var(--look-w);
+    max-width: 100%;
+    margin-inline: auto;
+    padding: 0 var(--look-gap);
+    display: flex;
+    gap: var(--look-gap);
+  }
+  /* The columns and tiles are built by client JS, so they don't carry Astro's
+     scoped attribute — target them through the scoped .look-grid with :global
+     so the layout actually applies. Equal-width flex columns mean every image
+     fills its column (consistent width); height follows the aspect ratio. */
+  .look-grid :global(.look-col) {
+    display: flex;
+    flex-direction: column;
+    gap: var(--look-gap);
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .look-grid :global(.look-item) {
+    display: block;
+    line-height: 0;
+  }
+  .look-grid :global(.look-item picture),
+  .look-grid :global(.look-item img) {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  /* On phones a wide multi-column grid is unreadable, so always go full width. */
+  @media (max-width: 720px) {
+    .look-grid {
+      width: 100%;
+    }
+  }
+
+  .look-status {
+    margin: 1.5rem 0 0;
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--color-muted);
+    min-height: 1.2em;
+  }
+  #look-sentinel {
+    height: 1px;
+  }
+
+  /* No-JS fallback: a plain CSS-column gallery of the first chunk. */
+  .look-fallback {
+    column-count: 3;
+    column-gap: 8px;
+  }
+  .look-fallback .look-item {
+    margin: 0 0 8px;
+    break-inside: avoid;
+  }
+
+  /* Density control — bottom-left, mirroring the header/theme-toggle chrome
+     (same font, weight, size, and edge padding). Look page only. */
+  .look-zoom {
+    position: fixed;
+    z-index: 100;
+    bottom: 0;
+    left: 0;
+    display: flex;
+    align-items: baseline;
+    gap: 0.7rem;
+    padding: clamp(1.1rem, 3vw, 1.8rem) var(--pad-x);
+  }
+  .look-zoom button {
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: 0.95rem;
+    letter-spacing: 0.01em;
+    line-height: 1;
+    color: var(--fg, var(--color-text));
+    background: none;
+    border: 0;
+    padding: 0;
+    cursor: inherit;
+    transition: opacity 0.2s ease;
+  }
+  .look-zoom button:hover:not(:disabled) {
+    opacity: 0.6;
+    color: var(--color-text);
+  }
+  .look-zoom button:disabled {
+    opacity: 0.3;
+    cursor: inherit;
+  }
+</style>
