@@ -1,7 +1,6 @@
 ---
 import BaseHead from '../components/BaseHead.astro';
 import Header from '../components/Header.astro';
-import Footer from '../components/Footer.astro';
 
 interface Props {
   title?: string;
@@ -23,6 +22,5 @@ const { title, description, minimal = false, mood } = Astro.props;
   <body data-mood={mood}>
     <Header minimal={minimal} />
     {minimal ? <slot /> : <div class="container"><slot /></div>}
-    <Footer minimal={minimal} />
   </body>
 </html>

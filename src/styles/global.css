@@ -42,10 +42,14 @@
 
 :root {
   --max-width: 720px;
-  --color-bg: #fafaf8;
-  --color-text: #1a1a1a;
-  --color-muted: #6b6b6b;
-  --color-rule: #e5e5e1;
+  /* Single source of truth for horizontal edge padding — header, menu,
+     container, and homepage all share this so spacing is consistent across
+     every breakpoint (including mobile). */
+  --pad-x: clamp(1.5rem, 5vw, 4rem);
+  --color-bg: #1a1a1a;
+  --color-text: #ede4dd;
+  --color-muted: #8f8a83;
+  --color-rule: rgba(237, 228, 221, 0.14);
   --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
     Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
   /* Display + reading typefaces — woff2 files in /public/fonts/.
@@ -53,9 +57,18 @@
      before the variable fonts finish loading (or if they fail). */
   --font-serif: 'Source Serif 4', 'Iowan Old Style', 'Apple Garamond', Georgia,
     'Times New Roman', serif;
-  --font-display: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI',
-    Roboto, sans-serif;
+  --font-display: 'Hanken Grotesk', 'Inter Variable', -apple-system,
+    BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'Monaspace Neon', ui-monospace, 'SFMono-Regular', 'Menlo', monospace;
+}
+
+/* ---- Light theme (inverse of the default dark palette) ----
+   Toggled by setting data-theme="light" on <html> (see the theme toggle). */
+:root[data-theme='light'] {
+  --color-bg: #ede4dd;
+  --color-text: #1a1a1a;
+  --color-muted: #6f6a63;
+  --color-rule: rgba(26, 26, 26, 0.16);
 }
 
 /* ---- Mood preset palette tokens (Read mode) ----
@@ -108,14 +121,26 @@ body[data-mood] {
   background: var(--bg);
   color: var(--fg);
 }
-body[data-mood] .site-header .site-title a,
-body[data-mood] .site-header nav a,
-body[data-mood] .site-footer a {
-  color: var(--fg);
-  opacity: 0.7;
+
+::selection {
+  background: #ff5000;
+  color: #fff;
 }
-body[data-mood] .site-footer {
-  border-top-color: color-mix(in srgb, var(--fg) 15%, transparent);
+
+/* ---- Custom cursor: filled orange circle, site-wide ---- */
+html,
+body,
+a,
+button,
+input,
+label,
+select,
+textarea,
+summary,
+[role='button'] {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28'%3E%3Ccircle cx='14' cy='14' r='7' fill='%23ff5000'/%3E%3C/svg%3E")
+      14 14,
+    auto;
 }
 
 * {
@@ -124,6 +149,10 @@ body[data-mood] .site-footer {
 
 html {
   -webkit-text-size-adjust: 100%;
+  overflow-x: hidden;
+}
+body {
+  overflow-x: hidden;
 }
 
 body {
@@ -139,7 +168,7 @@ body {
 .container {
   max-width: var(--max-width);
   margin: 0 auto;
-  padding: 0 1.25rem;
+  padding: clamp(4.5rem, 9vh, 6rem) var(--pad-x) 3rem;
 }
 
 a {
@@ -156,27 +185,133 @@ img {
   display: block;
 }
 
-/* ---- Header ---- */
+/* ---- Common fixed header + full-page menu overlay ---- */
+.site-menu-toggle {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
 .site-header {
-  padding: 3rem 0 2rem;
-  text-align: center;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: clamp(1.1rem, 3vw, 1.8rem) var(--pad-x);
+  font-family: var(--font-display);
+  pointer-events: none;
 }
-.site-header .site-title {
-  font-size: 1.4rem;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  margin: 0 0 0.35rem;
-}
-.site-header .site-title a {
-  text-decoration: none;
-}
-.site-header nav {
+.site-wordmark,
+.site-menu-button {
+  pointer-events: auto;
+  font-family: var(--font-display);
+  font-weight: 500;
   font-size: 0.95rem;
-  color: var(--color-muted);
-}
-.site-header nav a {
-  color: var(--color-muted);
+  letter-spacing: 0.01em;
+  color: var(--fg, var(--color-text));
   text-decoration: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: inherit;
+  transition: opacity 0.2s ease;
+}
+.site-menu-button {
+  display: inline-flex;
+}
+.site-wordmark:hover,
+.site-menu-button:hover {
+  opacity: 0.6;
+}
+.site-menu-button .label-close {
+  display: none;
+}
+
+/* Overlay menu */
+.site-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: var(--color-bg);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: clamp(4.5rem, 12vh, 8rem) var(--pad-x);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+.site-menu-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: clamp(0.1rem, 1vh, 0.5rem);
+  text-align: right;
+}
+.site-menu-list a {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(1.9rem, 6.5vw, 4.5rem);
+  line-height: 1.04;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  text-decoration: none;
+}
+.site-menu-list a:hover {
+  font-family: 'Didot', 'Hoefler Text', 'Playfair Display', Georgia, serif;
+  font-weight: 500;
+  font-style: italic;
+  opacity: 1;
+  color: var(--color-text);
+}
+
+/* Open state (checkbox hack) */
+.site-menu-toggle:checked ~ .site-menu {
+  opacity: 1;
+  visibility: visible;
+}
+.site-menu-toggle:checked ~ .site-header .site-menu-button .label-open {
+  display: none;
+}
+.site-menu-toggle:checked ~ .site-header .site-menu-button .label-close {
+  display: inline;
+}
+.site-menu-toggle:checked ~ .site-header .site-wordmark,
+.site-menu-toggle:checked ~ .site-header .site-menu-button {
+  color: var(--color-text);
+}
+body:has(.site-menu-toggle:checked) {
+  overflow: hidden;
+}
+
+/* Theme toggle — bottom-right, mirrors the header's proportions */
+.theme-toggle {
+  position: fixed;
+  bottom: 0;
+  right: 0;
+  z-index: 100;
+  padding: clamp(1.1rem, 3vw, 1.8rem) var(--pad-x);
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 0.95rem;
+  letter-spacing: 0.01em;
+  color: var(--fg, var(--color-text));
+  background: none;
+  border: 0;
+  cursor: inherit;
+  transition: opacity 0.2s ease;
+}
+.theme-toggle:hover {
+  opacity: 0.6;
 }
 
 /* ---- Feed ---- */
@@ -442,82 +577,6 @@ main {
   font-size: 1.5rem;
 }
 
-/* ---- Footer ---- */
-.site-footer {
-  border-top: 1px solid var(--color-rule);
-  margin-top: 2rem;
-  padding: 2rem 0 3rem;
-  font-size: 0.85rem;
-  color: var(--color-muted);
-  display: flex;
-  gap: 1.25rem;
-  flex-wrap: wrap;
-  justify-content: center;
-}
-.site-footer a {
-  color: var(--color-muted);
-  text-decoration: none;
-}
-
-/* ---- Portal (homepage) ---- */
-.site-header[data-minimal] {
-  padding: 2.5rem 0 1rem;
-}
-.site-header[data-minimal] .site-title {
-  font-size: 1.1rem;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  color: var(--color-muted);
-}
-.portal {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: calc(100vh - 12rem);
-  padding: 2rem 1.25rem 4rem;
-}
-.portal-doors {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: clamp(2rem, 6vh, 4.5rem);
-  align-items: center;
-}
-.portal-door {
-  display: block;
-  text-decoration: none;
-  text-align: center;
-  color: var(--color-text);
-  transition: transform 0.25s ease;
-}
-.portal-door:hover {
-  opacity: 1;
-  transform: translateY(-2px);
-}
-.portal-verb {
-  display: block;
-  font-family: var(--font-serif);
-  font-size: clamp(4rem, 16vw, 12rem);
-  font-weight: 400;
-  line-height: 0.95;
-  letter-spacing: -0.025em;
-  transition: opacity 0.25s ease;
-}
-.portal-door:hover .portal-verb {
-  opacity: 0.65;
-}
-.portal-hint {
-  display: block;
-  margin-top: 0.4rem;
-  font-size: 0.78rem;
-  font-weight: 500;
-  letter-spacing: 0.18em;
-  color: var(--color-muted);
-  text-transform: uppercase;
-}
-
 /* ---- Read mode — grid view ---- */
 .read-intro {
   max-width: 38rem;
@@ -550,7 +609,7 @@ main {
   min-height: 12rem;
   border: 1px solid var(--color-rule);
   border-radius: 4px;
-  background: #fff;
+  background: rgba(237, 228, 221, 0.03);
   text-decoration: none;
   color: var(--color-text);
   transition: border-color 0.2s ease, transform 0.2s ease;
@@ -631,8 +690,5 @@ main {
 @media (max-width: 600px) {
   .archive-grid {
     grid-template-columns: repeat(3, 1fr);
-  }
-  .site-header {
-    padding: 2rem 0 1.5rem;
   }
 }
