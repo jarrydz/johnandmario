@@ -29,7 +29,6 @@ import { withBase } from '../utils';
     <li><a href={withBase('/search')}>Search</a></li>
     <li><a href={withBase('/archive')}>Archive</a></li>
     <li><a href={GITHUB_REPO} rel="noopener noreferrer">GitHub</a></li>
-    <li><a href={withBase('/rss.xml')}>RSS</a></li>
   </ul>
 </nav>
 <button
@@ -38,16 +37,18 @@ import { withBase } from '../utils';
   type="button"
   aria-label="Toggle colour theme"
 >
-  Dark
+  Light
 </button>
 
 <script>
   const btn = document.getElementById('theme-toggle');
   const root = document.documentElement;
+  // Label shows the mode the button switches *to*: "Light" while in dark mode,
+  // "Dark" while in light mode.
   const sync = () => {
     if (btn) {
       btn.textContent =
-        root.getAttribute('data-theme') === 'light' ? 'Light' : 'Dark';
+        root.getAttribute('data-theme') === 'light' ? 'Dark' : 'Light';
     }
   };
   btn?.addEventListener('click', () => {
