@@ -10,7 +10,7 @@ const quotes = (await getCollection('quotes')).sort(
 
 <BaseLayout title="Read" description="A reading archive — quotes worth keeping.">
   <main>
-    <ul class="quote-list">
+    <ul class="quote-grid">
       {quotes.map((quote) => <QuoteCard quote={quote} />)}
     </ul>
   </main>
