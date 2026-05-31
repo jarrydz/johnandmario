@@ -577,73 +577,52 @@ main {
   font-size: 1.5rem;
 }
 
-/* ---- Read mode — grid view ---- */
-.read-intro {
-  max-width: 38rem;
-  margin: 1rem 0 2.5rem;
-  font-family: var(--font-serif);
-  font-size: 1.15rem;
-  line-height: 1.5;
-  color: var(--color-muted);
-}
-.quote-grid {
+/* ---- Read mode — listing (full epigram render) ----
+   Quotes render at full size on the listing itself rather than as previews.
+   Each item carries data-mood so the mood's --accent / --quote-font tokens
+   apply; the page keeps the site theme (only --accent and --quote-font are
+   consumed here, never --bg / --fg). */
+.quote-list {
   list-style: none;
   padding: 0;
   margin: 0;
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1.25rem;
-}
-@media (min-width: 720px) {
-  .quote-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1.5rem;
-  }
-}
-.quote-card {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1.5rem 1.5rem 1.25rem;
-  min-height: 12rem;
-  border: 1px solid var(--color-rule);
-  border-radius: 4px;
-  background: rgba(237, 228, 221, 0.03);
+}
+.quote-item {
+  border-top: 1px solid var(--color-rule);
+}
+.quote-item:last-child {
+  border-bottom: 1px solid var(--color-rule);
+}
+.quote-block {
+  display: grid;
+  gap: clamp(1.25rem, 4vh, 2.25rem);
+  padding: clamp(2.75rem, 9vh, 5.5rem) 0;
   text-decoration: none;
   color: var(--color-text);
-  transition: border-color 0.2s ease, transform 0.2s ease;
+  transition: opacity 0.2s ease;
 }
-.quote-card:hover {
-  border-color: var(--color-muted);
-  opacity: 1;
+.quote-block:hover {
+  opacity: 0.6;
 }
-.quote-card-body {
-  font-family: var(--font-serif);
-  font-size: 1.1rem;
-  line-height: 1.45;
+.quote-block-body {
+  margin: 0;
+  font-family: var(--quote-font, var(--font-display));
+  font-size: clamp(2rem, 6.5vw, 4.75rem);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.025em;
+  max-width: 20ch;
 }
-.quote-card-meta {
-  font-size: 0.78rem;
-  letter-spacing: 0.04em;
-  color: var(--color-muted);
-  display: flex;
-  justify-content: space-between;
-  gap: 0.75rem;
-  flex-wrap: wrap;
+.quote-block-body::first-letter {
+  color: var(--accent, var(--color-text));
 }
-.quote-card-mood {
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
-  font-size: 0.7rem;
-}
-.quote-card[data-mood='technical'] .quote-card-body {
-  font-family: var(--font-mono);
-  font-size: 1rem;
-}
-.quote-card[data-mood='epigram'] .quote-card-body {
+.quote-block-attribution {
   font-family: var(--font-display);
-  font-weight: 500;
+  font-size: 0.9rem;
+  letter-spacing: 0.08em;
+  color: var(--color-muted);
 }
 
 /* ---- Read mode — immersive (shared chrome) ---- */
