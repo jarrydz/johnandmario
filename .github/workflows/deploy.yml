@@ -23,14 +23,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Install, build and upload the site
         # `withastro/action` auto-detects the package manager, runs the build,
         # and uploads the artifact. `site` and `base` come from astro.config.mjs.
-        uses: withastro/action@v3
+        uses: withastro/action@v6
         with:
-          # Astro 6 requires Node >=22.12.0; the action defaults to Node 20,
-          # which fails the build. Pin Node 22 to match local development.
+          # Astro 6 requires Node >=22.12.0. Pin Node 22 to match local
+          # development and guarantee a compatible toolchain on CI.
           node-version: 22
 
   deploy:
@@ -42,4 +42,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
