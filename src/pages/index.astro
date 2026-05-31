@@ -4,13 +4,21 @@ import { getCollection } from 'astro:content';
 import { withBase } from '../utils';
 import { IMAGE_CDN_BASE } from '../consts';
 
-// A pool of random photo keys baked at build time; the client reshuffles and
-// picks 20 on each load so the intro reel varies between visits.
-const candidates = (await getCollection('posts'))
+// A fixed, deterministic pool of photo keys for the intro reel, spread evenly
+// across the whole archive (newest→oldest). Pinning it — no build-time random —
+// means the reel only ever needs this bounded set of transforms, which the CDN
+// caches once and reuses across every future deploy, instead of pulling a fresh
+// random batch each build. The client still shuffles these and shows 20 per
+// load, so the reel keeps varying between visits.
+const REEL_POOL_SIZE = 200;
+const reelPosts = (await getCollection('posts'))
   .filter((p) => p.data.r2_key)
-  .sort(() => Math.random() - 0.5)
-  .slice(0, 80)
-  .map((p) => p.data.r2_key as string);
+  .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+const reelStep = Math.max(1, Math.floor(reelPosts.length / REEL_POOL_SIZE));
+const candidates = Array.from(
+  { length: Math.min(REEL_POOL_SIZE, reelPosts.length) },
+  (_, i) => reelPosts[i * reelStep].data.r2_key as string,
+);
 ---
 
 <BaseLayout

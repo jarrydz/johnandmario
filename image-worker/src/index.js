@@ -14,7 +14,35 @@
  * fixed set bounds how many unique transforms a caller can trigger, and the
  * Cache API ensures each (key + params) combo is transformed at most once, then
  * served from the edge cache thereafter.
+ *
+ * Resilience: the Images binding can fail at runtime — most commonly when the
+ * monthly transform allowance is exhausted, at which point every call throws.
+ * Rather than 500 (which renders as a broken/blank image on the site), we catch
+ * the failure and serve the untransformed original from R2 so an image ALWAYS
+ * appears. The browser decodes the real bytes regardless of the <source type>
+ * hint, so the <picture> fallback chain still displays correctly. Fallback
+ * responses are given a short TTL and are NOT written to the edge cache, so the
+ * Worker automatically resumes serving real resized variants once the transform
+ * engine recovers (e.g. when the monthly allowance resets).
  */
+
+// Infer a sensible Content-Type for the original object when R2 didn't record
+// one, so the fallback bytes are served with a decodable image type.
+const EXT_CONTENT_TYPE = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  avif: 'image/avif',
+};
+
+function originalContentType(object, key) {
+  const recorded = object.httpMetadata && object.httpMetadata.contentType;
+  if (recorded) return recorded;
+  const ext = key.split('.').pop().toLowerCase();
+  return EXT_CONTENT_TYPE[ext] || 'application/octet-stream';
+}
 
 // Widths the site actually requests. Anything else is rejected, so a malicious
 // caller can't spin up unlimited (billable) transforms with ?w=1,2,3,...
@@ -95,20 +123,38 @@ export default {
     }
 
     // --- transform ---
-    let pipeline = env.IMAGES.input(object.body);
-    if (width !== undefined) {
-      pipeline = pipeline.transform({ width });
+    try {
+      let pipeline = env.IMAGES.input(object.body);
+      if (width !== undefined) {
+        pipeline = pipeline.transform({ width });
+      }
+      const result = await pipeline.output({ format, quality });
+
+      const base = result.response();
+      const headers = new Headers(base.headers);
+      headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+      headers.set('Vary', 'Accept');
+      const response = new Response(base.body, { status: base.status, headers });
+
+      // Store in the edge cache without delaying the response to the user.
+      ctx.waitUntil(cache.put(cacheKey, response.clone()));
+      return response;
+    } catch (err) {
+      // The transform engine is unavailable (most often: the monthly transform
+      // allowance is exhausted, which makes every call throw). Serve the
+      // untransformed original so the image still appears. We re-read the object
+      // because its body stream was already consumed by IMAGES.input() above.
+      const original = await env.BUCKET.get(key);
+      if (!original) {
+        return new Response('Image not found', { status: 404 });
+      }
+      const headers = new Headers();
+      headers.set('Content-Type', originalContentType(original, key));
+      // Short TTL only: don't pin the unoptimised original at the edge — once
+      // the transform engine recovers, real resized variants resume.
+      headers.set('Cache-Control', 'public, max-age=600');
+      headers.set('X-Image-Fallback', 'original');
+      return new Response(original.body, { status: 200, headers });
     }
-    const result = await pipeline.output({ format, quality });
-
-    const base = result.response();
-    const headers = new Headers(base.headers);
-    headers.set('Cache-Control', 'public, max-age=31536000, immutable');
-    headers.set('Vary', 'Accept');
-    const response = new Response(base.body, { status: base.status, headers });
-
-    // Store in the edge cache without delaying the response to the user.
-    ctx.waitUntil(cache.put(cacheKey, response.clone()));
-    return response;
   },
 };

@@ -112,10 +112,7 @@ const firstChunk = items.slice(0, LOOK_CHUNK);
       a.className = 'look-item';
 
       const picture = document.createElement('picture');
-      const avif = document.createElement('source');
-      avif.type = 'image/avif';
-      avif.srcset = srcset(item.key, 'avif', item.w);
-      avif.sizes = sizes;
+      // WebP only (no AVIF) to keep billable image transforms down.
       const webp = document.createElement('source');
       webp.type = 'image/webp';
       webp.srcset = srcset(item.key, 'webp', item.w);
@@ -130,7 +127,7 @@ const firstChunk = items.slice(0, LOOK_CHUNK);
       img.loading = 'lazy';
       img.decoding = 'async';
 
-      picture.append(avif, webp, img);
+      picture.append(webp, img);
       a.append(picture);
       return a;
     };
