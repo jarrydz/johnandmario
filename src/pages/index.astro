@@ -64,39 +64,61 @@ const candidates = Array.from(
       [pool[i], pool[j]] = [pool[j], pool[i]];
     }
     const picks = pool.slice(0, 20).map(url);
-    picks.forEach((u) => {
-      const pre = new Image();
-      pre.src = u;
-    });
 
     const FRAME = 150;
-    let i = 0;
+    // Cap how long we wait on any single image. When the image CDN is serving
+    // large un-transformed originals (e.g. the monthly transform allowance is
+    // spent), a frame can be slow; skip it rather than let the previous frame
+    // linger, which would look like the same image repeating.
+    const LOAD_TIMEOUT = 1200;
     reel.classList.add('is-active');
 
     function finish() {
-      // Last image has landed — fade the reel and write the words up.
+      // Reel is done — fade it out and write the words up.
       reel.classList.add('is-done');
       if (nav) nav.dataset.intro = 'in';
       setTimeout(() => reel.remove(), 600);
     }
 
-    function tick() {
-      img.src = picks[i];
-      img.animate(
-        [
-          { transform: 'translateY(45%)', opacity: 0 },
-          { transform: 'translateY(0)', opacity: 1 },
-        ],
-        { duration: FRAME, easing: 'ease-out' },
-      );
-      i++;
-      if (i < picks.length) {
-        setTimeout(tick, FRAME);
-      } else {
-        setTimeout(finish, 280);
-      }
+    // Resolve true once the image is fully loaded, false on error/timeout.
+    function preload(src) {
+      return new Promise((resolve) => {
+        const im = new Image();
+        let settled = false;
+        const settle = (ok) => {
+          if (!settled) {
+            settled = true;
+            resolve(ok);
+          }
+        };
+        im.onload = () => settle(true);
+        im.onerror = () => settle(false);
+        im.src = src;
+        setTimeout(() => settle(false), LOAD_TIMEOUT);
+      });
     }
-    tick();
+
+    async function run() {
+      let shown = 0;
+      for (let k = 0; k < picks.length; k++) {
+        // Only ever display a frame whose image has actually arrived, so the
+        // reel advances at the network's pace instead of repeating a stale one.
+        const ready = await preload(picks[k]);
+        if (!ready) continue;
+        img.src = picks[k];
+        img.animate(
+          [
+            { transform: 'translateY(45%)', opacity: 0 },
+            { transform: 'translateY(0)', opacity: 1 },
+          ],
+          { duration: FRAME, easing: 'ease-out' },
+        );
+        shown++;
+        await new Promise((r) => setTimeout(r, FRAME));
+      }
+      setTimeout(finish, shown ? 280 : 0);
+    }
+    run();
   })();
 </script>
 
