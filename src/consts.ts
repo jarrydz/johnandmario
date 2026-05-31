@@ -21,4 +21,9 @@ export const IMAGE_CDN_BASE = 'https://johnandmario-images.jarrydz.workers.dev';
 // Responsive widths the site requests. Must be a subset of the Worker's
 // allowlist (see image-worker/src/index.js). RemoteImage caps these to each
 // image's intrinsic width, so small originals are never upscaled.
-export const IMAGE_WIDTHS = [320, 480, 640, 720, 1080, 1600];
+//
+// Kept deliberately small (3 breakpoints) to limit how many unique image
+// transforms the site can trigger — every extra width is a separate billable
+// transform on the image Worker. Most originals are ~500px wide, so they only
+// ever request the 480 variant.
+export const IMAGE_WIDTHS = [480, 960, 1600];

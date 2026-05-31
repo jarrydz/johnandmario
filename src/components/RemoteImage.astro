@@ -1,8 +1,9 @@
 ---
 /**
  * Renders an image served by the Cloudflare image Worker (originals in R2,
- * resized + re-encoded on the fly). Emits a <picture> with AVIF and WebP
- * sources plus a JPEG <img> fallback.
+ * resized + re-encoded on the fly). Emits a <picture> with a WebP source plus a
+ * JPEG <img> fallback. (AVIF is intentionally omitted — it roughly doubled the
+ * number of billable image transforms for negligible gain at these sizes.)
  *
  * Widths are capped to the image's intrinsic width (when known) so we never
  * request an upscale — which would also waste a billable transform.
@@ -45,7 +46,6 @@ const fallbackWidth = finalWidths[finalWidths.length - 1];
 ---
 
 <picture>
-  <source type="image/avif" srcset={srcset('avif')} sizes={sizes} />
   <source type="image/webp" srcset={srcset('webp')} sizes={sizes} />
   <img
     src={buildUrl(fallbackWidth, 'jpeg')}
