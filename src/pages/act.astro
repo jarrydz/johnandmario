@@ -1,0 +1,124 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+// Rules to live by — a running, MSCHF-style code-listing of maxims. Each rule
+// is one entry; the leading "#n" gutter is decorative line numbering, so the
+// rule text itself is never manually numbered. Add to the list to extend it.
+const rules = [
+  'Walk on the outside; protect the inside.',
+  'Call when you think of them; do not wait for a reason.',
+  'Carry the heavier bag. Always.',
+  'Arrive five minutes early; leave on time.',
+  "Apologise to your children; they're watching how it's done.",
+  'Do the work no one sees.',
+  'Praise loudly; correct quietly.',
+  'Be the same man in every room.',
+];
+---
+
+<BaseLayout
+  title="Act"
+  description="Lessons worth keeping — rules to live by."
+  minimal
+>
+  <main class="rules-page">
+    <p class="rules-label">
+      Small acts with large meaning; observable, but never announced. Given to
+      me by men worth becoming; kept here as the inheritance.
+    </p>
+    <ol class="rules-list">
+      {
+        rules.map((rule, i) => (
+          <li class="rule">
+            <span class="rule-gutter" aria-hidden="true">
+              <span class="rule-hash">#</span>
+              <span class="rule-num">{i + 1}</span>
+            </span>
+            <span class="rule-text">{rule}</span>
+          </li>
+        ))
+      }
+    </ol>
+  </main>
+</BaseLayout>
+
+<style>
+  .rules-page {
+    min-height: 100vh;
+    padding: clamp(4.5rem, 12vh, 8rem) var(--pad-x) clamp(3rem, 10vh, 6rem);
+  }
+
+  /* Intro sentence — a quiet preface set above the listing. */
+  .rules-label {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    font-weight: 400;
+    line-height: 1.6;
+    letter-spacing: 0.02em;
+    max-width: 34rem;
+    color: var(--color-muted);
+    margin: 0 0 clamp(2rem, 6vh, 4rem);
+  }
+
+  .rules-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Each rule: a narrow #n gutter, then the oversized monospace line. */
+  .rule {
+    display: flex;
+    align-items: baseline;
+    gap: clamp(0.75rem, 2vw, 1.5rem);
+  }
+  .rule + .rule {
+    margin-top: clamp(0.1rem, 0.6vh, 0.4rem);
+  }
+
+  .rule-gutter {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 1.6em;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    line-height: 1.1;
+    color: var(--color-muted);
+    opacity: 0.6;
+    /* Hang the gutter near the cap-height of the big line beside it. */
+    align-self: flex-start;
+    margin-top: 0.55em;
+  }
+  .rule-hash {
+    display: block;
+  }
+  .rule-num {
+    display: block;
+  }
+
+  .rule-text {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    font-size: clamp(1.12rem, 4.55vw, 3.15rem);
+    line-height: 1.04;
+    letter-spacing: -0.01em;
+    color: var(--color-text);
+    transition: opacity 0.18s ease;
+  }
+
+  /* Restraint: a quiet dim of the siblings on hover, in the motion language. */
+  .rules-list:hover .rule .rule-text {
+    opacity: 0.45;
+  }
+  .rules-list .rule:hover .rule-text {
+    opacity: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .rule-text {
+      transition: none;
+    }
+  }
+</style>

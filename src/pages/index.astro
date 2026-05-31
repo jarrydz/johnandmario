@@ -22,14 +22,14 @@ const candidates = Array.from(
 ---
 
 <BaseLayout
-  description="A personal archive. Photographs and quotes — two ways to read."
+  description="A personal archive. Images, words, and lessons — three ways in."
   minimal
 >
   <main class="portal">
     <nav class="portal-nav">
-      <a href={withBase('/look')} class="portal-link" data-tag="Photographs">Look</a>
-      <a href={withBase('/read')} class="portal-link" data-tag="Quotes">Read</a>
-      <a href={withBase('/words')} class="portal-link" data-tag="Writing">Words</a>
+      <a href={withBase('/look')} class="portal-link" data-tag="Images">Look</a>
+      <a href={withBase('/read')} class="portal-link" data-tag="Words">Read</a>
+      <a href={withBase('/act')} class="portal-link" data-tag="Lessons">Act</a>
     </nav>
     <div class="intro-reel" id="intro-reel" aria-hidden="true">
       <img class="intro-reel-img" alt="" decoding="async" />
@@ -146,10 +146,10 @@ const candidates = Array.from(
     pointer-events: none;
   }
   .portal-link:nth-child(odd)::after {
-    left: calc(100% + clamp(0.75rem, 2vw, 1.75rem));
+    right: calc(100% + clamp(0.75rem, 2vw, 1.75rem));
   }
   .portal-link:nth-child(even)::after {
-    right: calc(100% + clamp(0.75rem, 2vw, 1.75rem));
+    left: calc(100% + clamp(0.75rem, 2vw, 1.75rem));
   }
   .portal-link:hover {
     font-family: 'Didot', 'Hoefler Text', 'Playfair Display', Georgia, serif;
