@@ -81,7 +81,7 @@ Across all modes:
 - `Footer.astro` — attribution, RSS links
 - `Tags.astro` — single taxonomy
 - Pagefind — search across both collections
-- Image worker (Cloudflare R2) — unchanged
+- Image worker (Cloudflare R2) — self-healing; serves the R2 original if the Cloudflare Images transform binding throws (e.g. the free-tier 5,000/month allowance is exhausted), so images always render. `<picture>` emits WebP + JPEG fallback at widths `[480, 960, 1600]`. See [ADR 0014](adr/0014-image-transform-resilience-and-free-tier-budget.md).
 
 What varies per mode: typography, palette, layout system, motion language. See [design-system.md](design-system.md).
 
