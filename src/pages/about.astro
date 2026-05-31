@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { CONTACT_EMAIL } from '../consts';
+import { withBase } from '../utils';
 ---
 
 <BaseLayout title="About" description="About this archive.">
@@ -12,32 +13,36 @@ import { CONTACT_EMAIL } from '../consts';
       to keep standing there.
     </p>
     <p>
-      John &amp; Mario is a personal archive of those things. It began as a Tumblr
-      between 2011 and 2013 — a wall of images collected with no system beyond
-      <em>this one, yes</em>. It's being rebuilt here, on infrastructure I own, with
-      no feed to feed and no one to perform for.
+      There are three ways in.
+      <a class="section-link" href={withBase('/look')}>Look</a> is for images,
+      kept for the way they hold light or hold still.
+      <a class="section-link" href={withBase('/read')}>Read</a> is for words worth
+      carrying around.
+      <a class="section-link" href={withBase('/act')}>Act</a> is for the small
+      rules worth living by.
     </p>
     <p>
-      There are two ways in. <strong>Look</strong> is for images — the original
-      impulse, mostly other people's photographs, kept for the way they hold light
-      or hold still. <strong>Read</strong> is for words — lines worth carrying
-      around, set in the type they deserve. More rooms may open later. The house
-      stays the same.
-    </p>
-    <p>
-      A confession about the images: they are mostly not mine. They were gathered
-      over years, long before I thought to write down where anything came from. I
-      don't claim them. Where I know the source, it's credited. Where I don't, I'd
-      genuinely like to — if you recognise something, tell me, and I'll add the
-      credit or take it down, gladly.
-    </p>
-    <p>
-      That's the whole arrangement. No comments, no likes, no metrics quietly
-      counting you. Just a place to keep the things that seemed worth keeping, in
-      case they're worth keeping to you too.
+      Most of the images aren't mine. Where I know the source, it's credited.
+      Where I don't, I'd like to; if you recognise something, tell me and I'll add
+      the credit or take it down.
     </p>
     {CONTACT_EMAIL && (
       <p><a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a></p>
     )}
   </article>
 </BaseLayout>
+
+<style>
+  /* Subtle underline that links each section word to its page. */
+  .section-link {
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+    text-decoration-color: var(--color-rule);
+    transition: text-decoration-color 0.18s ease;
+  }
+  .section-link:hover {
+    text-decoration-color: currentColor;
+  }
+</style>
