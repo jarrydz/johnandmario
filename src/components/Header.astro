@@ -25,10 +25,13 @@ import { withBase } from '../utils';
   <ul class="site-menu-list">
     <li><a href={withBase('/look')}>Look</a></li>
     <li><a href={withBase('/read')}>Read</a></li>
+    <li><a href={withBase('/act')}>Act</a></li>
     <li><a href={withBase('/about')}>About</a></li>
     <li><a href={withBase('/search')}>Search</a></li>
     <li><a href={withBase('/archive')}>Archive</a></li>
-    <li><a href={GITHUB_REPO} rel="noopener noreferrer">GitHub</a></li>
+    <li>
+      <a href={GITHUB_REPO} target="_blank" rel="noopener noreferrer">GitHub</a>
+    </li>
   </ul>
 </nav>
 <button
