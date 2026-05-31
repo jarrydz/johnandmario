@@ -1,31 +1,17 @@
 ---
 import type { CollectionEntry } from 'astro:content';
-import { withBase, quoteSlug } from '../utils';
 
 interface Props {
   quote: CollectionEntry<'quotes'>;
 }
 
 const { quote } = Astro.props;
-const { attribution, source, source_year, mood } = quote.data;
-const href = withBase(`/read/${quoteSlug(quote.id)}`);
-
-// Render the full quote on the listing page — no truncation. The bodies are
-// short epigrams, so they read as the page itself rather than as previews.
+const { attribution, source } = quote.data;
 const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
 const byline = attribution ?? source ?? '';
 ---
 
-<li class="quote-item" data-mood={mood}>
-  <a href={href} class="quote-block">
-    <blockquote class="quote-block-body">{body}</blockquote>
-    {
-      byline && (
-        <footer class="quote-block-attribution">
-          <span class="quote-block-author">— {byline}</span>
-          {source_year && <span>, {source_year}</span>}
-        </footer>
-      )
-    }
-  </a>
+<li class="quote-card">
+  <blockquote class="quote-card-body">{body}</blockquote>
+  {byline && <p class="quote-card-author">{byline}</p>}
 </li>
