@@ -10,11 +10,7 @@ const quotes = (await getCollection('quotes')).sort(
 
 <BaseLayout title="Read" description="A reading archive — quotes worth keeping.">
   <main>
-    <p class="read-intro">
-      Quotes worth keeping. Each lives in a typographic mood that suits its tone — open one to see it
-      breathe.
-    </p>
-    <ul class="quote-grid">
+    <ul class="quote-list">
       {quotes.map((quote) => <QuoteCard quote={quote} />)}
     </ul>
   </main>

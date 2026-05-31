@@ -7,26 +7,25 @@ interface Props {
 }
 
 const { quote } = Astro.props;
-const { attribution, source, mood } = quote.data;
+const { attribution, source, source_year, mood } = quote.data;
 const href = withBase(`/read/${quoteSlug(quote.id)}`);
 
-// Build a short preview from the markdown body — first paragraph, hard-capped.
-const rawBody = (quote.body ?? '').replace(/\s+/g, ' ').trim();
-const PREVIEW_MAX = 200;
-const preview =
-  rawBody.length > PREVIEW_MAX
-    ? rawBody.slice(0, PREVIEW_MAX).replace(/\s+\S*$/, '') + '…'
-    : rawBody;
-
+// Render the full quote on the listing page — no truncation. The bodies are
+// short epigrams, so they read as the page itself rather than as previews.
+const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
 const byline = attribution ?? source ?? '';
 ---
 
-<li>
-  <a href={href} class="quote-card" data-mood={mood}>
-    <p class="quote-card-body">{preview}</p>
-    <div class="quote-card-meta">
-      {byline && <span class="quote-card-author">{byline}</span>}
-      <span class="quote-card-mood">{mood}</span>
-    </div>
+<li class="quote-item" data-mood={mood}>
+  <a href={href} class="quote-block">
+    <blockquote class="quote-block-body">{body}</blockquote>
+    {
+      byline && (
+        <footer class="quote-block-attribution">
+          <span class="quote-block-author">— {byline}</span>
+          {source_year && <span>, {source_year}</span>}
+        </footer>
+      )
+    }
   </a>
 </li>
