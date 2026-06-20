@@ -145,6 +145,26 @@ function run(cmd, argv, opts = {}) {
   });
 }
 
+// Like run(), but retries on failure — git exits 128 when another process
+// (commonly an editor's git worker, e.g. Cursor) is holding a .lock for a
+// split second. A short backoff almost always clears it.
+async function runRetry(cmd, argv, { attempts = 4, delayMs = 1500, label, ...opts } = {}) {
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      await run(cmd, argv, opts);
+      return;
+    } catch (e) {
+      lastErr = e;
+      if (i < attempts - 1) {
+        process.stdout.write(`  ${label || cmd} blocked (an editor's git worker?) — retrying…\n`);
+        await sleep(delayMs);
+      }
+    }
+  }
+  throw lastErr;
+}
+
 async function caption(buffer) {
   if (dryRun) {
     return {
@@ -280,14 +300,26 @@ async function main() {
   fs.writeFileSync(postPath, fm);
   console.log(`Wrote src/content/posts/${slug}.md`);
 
-  // 9. Commit (+ push) from the repo root.
-  await run('git', ['add', postPath], { cwd: ROOT });
-  await run('git', ['commit', '-m', `Add post ${slug}`], { cwd: ROOT });
-  if (noPush) {
-    console.log(`\nCommitted, not pushed (--no-push). Run "git push" to deploy.`);
-  } else {
-    await run('git', ['push'], { cwd: ROOT });
-    console.log(`\n✓ Pushed. Live in ~1–2 min at ${SITE_BASE}/posts/${slug}/`);
+  // 9. Commit (+ push) from the repo root. Retried, because the image is
+  //    already in R2 and the post is written — a git lock must not strand us.
+  try {
+    await runRetry('git', ['add', postPath], { cwd: ROOT, label: 'git add' });
+    await runRetry('git', ['commit', '-m', `Add post ${slug}`], { cwd: ROOT, label: 'git commit' });
+    if (noPush) {
+      console.log(`\nCommitted, not pushed (--no-push). Run "git push" to deploy.`);
+    } else {
+      await runRetry('git', ['push'], { cwd: ROOT, label: 'git push' });
+      console.log(`\n✓ Pushed. Live in ~1–2 min at ${SITE_BASE}/posts/${slug}/`);
+    }
+  } catch (e) {
+    console.error(
+      `\n✗ Git step failed after retries: ${e.message}\n\n` +
+        `  The image is uploaded and the post is written — only the commit/push remains.\n` +
+        `  A stuck git lock (often Cursor's git worker) is the usual cause. Finish manually:\n\n` +
+        `    find "${ROOT}/.git" -name '*.lock' -delete\n` +
+        `    git -C "${ROOT}" add -A && git -C "${ROOT}" commit -m "Add post ${slug}" && git -C "${ROOT}" push\n`,
+    );
+    process.exit(1);
   }
 }
 
