@@ -25,6 +25,36 @@ You also need `wrangler` logged in (done already from the image-worker setup).
 `data/index.json` (the metadata backbone, 6,727 records) is committed. The
 original images are read from `../original-blog-imgs/` (git-ignored archive).
 
+## Add a single new post (the ongoing workflow)
+
+The bulk import is done. Day to day, add one image at a time with `img.mjs` —
+it captions, uploads, writes the post, and deploys in one command.
+
+```sh
+npm run img -- ~/Desktop/cabin.jpg
+```
+
+It reads the dimensions, captions with Claude (same prompt as the bulk run),
+shows a preview, then on `y` uploads the original to R2, writes the markdown
+post, commits, and pushes. GitHub Actions deploys it live in ~1–2 min.
+
+Flags:
+
+| Flag | Effect |
+| --- | --- |
+| `--tags a,b,c` | extra tags, merged with the AI tags |
+| `--date <ISO>` | post date (default: now) |
+| `--title "…"` | optional title |
+| `--source "…"` / `--source-url <URL>` | attribution line |
+| `--slug <text>` | override the auto id (sets the URL) |
+| `--no-push` | commit but don't deploy |
+| `-y` | skip the confirm prompt |
+| `--dry-run` | preview only — no API, no upload, no git |
+
+New uploads land under the `new/` prefix in R2, keeping them apart from the
+archived originals. The Anthropic key is read from the macOS Keychain by the
+npm script, exactly like `caption`.
+
 ## The 50-image test first
 
 ```sh
