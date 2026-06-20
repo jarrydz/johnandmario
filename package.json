@@ -8,7 +8,8 @@
     "start": "astro dev",
     "build": "astro build && pagefind --site dist",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "img": "ANTHROPIC_API_KEY=\"${ANTHROPIC_API_KEY:-$(security find-generic-password -s ANTHROPIC_API_KEY -w 2>/dev/null)}\" node scripts/img.mjs"
   },
   "dependencies": {
     "@astrojs/rss": "^4.0.18",
