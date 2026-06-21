@@ -55,6 +55,36 @@ New uploads land under the `new/` prefix in R2, keeping them apart from the
 archived originals. The Anthropic key is read from the macOS Keychain by the
 npm script, exactly like `caption`.
 
+## Add a quote to Read
+
+Quotes are text only — no image, no R2, no API key. `img.mjs`'s lightweight
+sibling.
+
+```sh
+npm run quote -- "Nothing is a mistake. There's only make." --by "Sister Corita Kent"
+```
+
+The quote is the body; everything else is a flag. It builds a clean URL slug
+from the author and opening words (pass `--slug` to set your own), checks it
+doesn't collide with an existing quote, writes the markdown, then commits and
+pushes.
+
+Flags:
+
+| Flag | Effect |
+| --- | --- |
+| `--by "…"` | attribution (defaults to `Unknown`) |
+| `--source "…"` / `--source-url <URL>` / `--year N` | the work it's from |
+| `--mood <name>` | epigram · literary · cinematic · handwritten · technical · broadside · fragment (default epigram) |
+| `--tags a,b,c` | thematic tags |
+| `--lang xx` | language code, if not English |
+| `--slug <text>` | override the auto URL slug |
+| `--file <path>` | read the body from a file (longer passages) |
+| `--date <ISO>` | filing date (default: now) |
+| `--no-push` · `-y` · `--dry-run` | as per `img` |
+
+Run with no text argument and it prompts you for the quote.
+
 ## The 50-image test first
 
 ```sh
