@@ -25,10 +25,11 @@ export const LOOK_CHUNK = 30;
  * first. Shared by the index page (first chunk + bootstrap) and the JSON
  * endpoint (every chunk) so the two can never drift out of sync.
  */
-export async function getLookItems(): Promise<LookItem[]> {
+export async function getLookItems(opts: { jz?: boolean } = {}): Promise<LookItem[]> {
   const posts = await getCollection('posts');
   return posts
     .filter((p) => p.data.r2_key)
+    .filter((p) => (opts.jz ? p.data.jz === true : true)) // /look?jz → JZ's own photos
     .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf())
     .map((p) => ({
       id: p.id,

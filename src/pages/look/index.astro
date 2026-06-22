@@ -11,10 +11,19 @@ import { getLookItems, lookPageCount, LOOK_CHUNK } from '../../lib/lookFeed';
 const items = await getLookItems();
 const lastPage = lookPageCount(items.length);
 const firstChunk = items.slice(0, LOOK_CHUNK);
+
+// Provenance filter (/look?jz): only photos JZ took. Built alongside the full
+// feed so the client can swap to it instantly from the query param — no extra
+// page, no cost to the default view.
+const jzItems = await getLookItems({ jz: true });
+const jzLast = lookPageCount(jzItems.length);
+const jzFirstChunk = jzItems.slice(0, LOOK_CHUNK);
 ---
 
 <BaseLayout title="Look" description={SITE_DESCRIPTION}>
   <main>
+    <p class="look-filter" id="look-filter" hidden></p>
+
     <div class="look-bleed">
       <div class="look-grid" id="look-grid" data-cols="3" aria-label="Photographs"></div>
     </div>
@@ -52,6 +61,10 @@ const firstChunk = items.slice(0, LOOK_CHUNK);
   define:vars={{
     bootstrap: firstChunk,
     lastPage,
+    jzBootstrap: jzFirstChunk,
+    jzLast,
+    jzFeedBase: withBase('/look/feed/jz'),
+    allHref: withBase('/look'),
     cdnBase: IMAGE_CDN_BASE,
     imageWidths: IMAGE_WIDTHS,
     feedBase: withBase('/look/feed'),
@@ -65,6 +78,13 @@ const firstChunk = items.slice(0, LOOK_CHUNK);
     const more = document.getElementById('look-more');
     const less = document.getElementById('look-less');
     if (!grid || !sentinel) return;
+
+    // Provenance filter: /look?jz shows only photos JZ took. Swap the bootstrap,
+    // feed path, and page count — everything else is identical.
+    const isJz = new URLSearchParams(location.search).has('jz');
+    const boot = isJz ? jzBootstrap : bootstrap;
+    const feedRoot = isJz ? jzFeedBase : feedBase;
+    const lastPg = isJz ? jzLast : lastPage;
 
     const MIN = 1;
     const MAX = 8;
@@ -90,12 +110,12 @@ const firstChunk = items.slice(0, LOOK_CHUNK);
         .join(', ');
 
     // In-memory feed + masonry bookkeeping.
-    const items = bootstrap.slice();
+    const items = boot.slice();
     let nextPage = 2;
     let cols = 3;
     let columns = []; // { el, height } — height is a unitless aspect-ratio sum
     let loading = false;
-    let done = nextPage > lastPage;
+    let done = nextPage > lastPg;
 
     // Sizes hint reflects the *current* tile width so we never over-fetch when
     // zoomed out (8-up) or under-fetch when zoomed in (1-up).
@@ -171,7 +191,7 @@ const firstChunk = items.slice(0, LOOK_CHUNK);
       loading = true;
       setStatus('Loading…');
       try {
-        const res = await fetch(`${feedBase}/${nextPage}.json`);
+        const res = await fetch(`${feedRoot}/${nextPage}.json`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         const sizes = sizesAttr();
@@ -180,7 +200,7 @@ const firstChunk = items.slice(0, LOOK_CHUNK);
           placeTile(item, sizes);
         }
         nextPage += 1;
-        if (nextPage > (data.last || lastPage)) {
+        if (nextPage > (data.last || lastPg)) {
           done = true;
           observer.disconnect();
           setStatus('');
@@ -217,10 +237,27 @@ const firstChunk = items.slice(0, LOOK_CHUNK);
       if (!done && isSentinelNear()) loadMore();
     };
 
+    // Filter banner + empty state when viewing /look?jz.
+    if (isJz) {
+      document.title = 'Look — photographs by JZ';
+      const fl = document.getElementById('look-filter');
+      if (fl) {
+        fl.hidden = false;
+        const a = document.createElement('a');
+        a.href = allHref;
+        a.textContent = 'show all';
+        fl.append(document.createTextNode('Photographs by JZ · '), a);
+      }
+    }
+
     // Always start at three columns; the reader adjusts with More/Less.
     setCols(DEFAULT_COLS);
-    if (done) setStatus('');
-    observer.observe(sentinel);
+    if (items.length === 0) {
+      setStatus(isJz ? 'No photographs tagged yet.' : '');
+    } else {
+      if (done) setStatus('');
+      observer.observe(sentinel);
+    }
 
     // Re-lay out when crossing the single-column breakpoint.
     mqSingle.addEventListener('change', () => {
@@ -293,6 +330,18 @@ const firstChunk = items.slice(0, LOOK_CHUNK);
     font-size: 0.85rem;
     color: var(--color-muted);
     min-height: 1.2em;
+  }
+
+  /* Shown only on /look?jz — a quiet banner naming the filter with a way out. */
+  .look-filter {
+    margin: 0 0 1rem;
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--color-muted);
+  }
+  .look-filter a {
+    color: inherit;
+    text-underline-offset: 2px;
   }
   #look-sentinel {
     height: 1px;

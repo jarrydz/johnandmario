@@ -22,7 +22,7 @@ Everything publishes by committing to GitHub, which auto-deploys. Live in ~1–2
 | Post a photo with extra tags | `jm ~/path/photo.jpg --tags architecture,timber` |
 | Post a quote | `jm "The quote text." --by "Author"` |
 | Post from my phone | Photos → Share → **Post to J&M** |
-| Post my own photo from my phone | Photos → Share → **Post to J&M (mine)** |
+| Post my own photo from my phone | Photos → Share → **Post to J&M (yours)** |
 | Tag an already-posted photo as mine | `jztag <post-url>` |
 | Remove a post | see [Remove a post](#remove-a-post) |
 
@@ -42,12 +42,13 @@ jztag https://jarrydz.github.io/johnandmario/posts/2026-06-22-41ba5b75/
 
 ## Marking your own photography
 
-A photo you took gets `jz: true` in its file — quiet metadata for now, ready to
-show as a credit or a filtered view later. Three ways to set it, all identical:
+A photo you took gets `jz: true` in its file. Three ways to set it, all identical:
 
 - New photo, desktop: `jm photo.jpg --jz`
-- New photo, phone: the **Post to J&M (mine)** Shortcut
+- New photo, phone: the **Post to J&M (yours)** Shortcut
 - Already posted: `jztag <url>` (paste the post's URL or just its slug)
+
+**See them all:** [jarrydz.github.io/johnandmario/look?jz](https://jarrydz.github.io/johnandmario/look?jz) — the `/look` feed filtered to just your photographs.
 
 ---
 

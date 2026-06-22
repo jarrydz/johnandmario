@@ -92,8 +92,8 @@ Optional — add tags, a source, or mark it as your own photo via the query
 string, e.g. `…workers.dev/?tags=architecture,timber&source=Photographer%20Name`
 or `…workers.dev/?jz=1` to set `jz: true`.
 
-**Tip — a "my photo" Shortcut:** duplicate the Shortcut, name it
-**Post to J&M (mine)**, and append `?jz=1` to its URL. Then your own shots get
+**Tip — a "yours" Shortcut:** duplicate the Shortcut, name it
+**Post to J&M (yours)**, and append `?jz=1` to its URL. Then your own shots get
 tagged automatically; everything else uses the plain Shortcut.
 
 ## How it maps to `img.mjs`
