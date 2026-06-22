@@ -308,7 +308,7 @@ async function main() {
     if (noPush) {
       console.log(`\nCommitted, not pushed (--no-push). Run "git push" to deploy.`);
     } else {
-      await runRetry('git', ['push'], { cwd: ROOT, label: 'git push' });
+      await runRetry('git', ['push', '-u', 'origin', 'HEAD'], { cwd: ROOT, label: 'git push' });
       console.log(`\n✓ Pushed. Live in ~1–2 min at ${SITE_BASE}/posts/${slug}/`);
     }
   } catch (e) {
@@ -317,7 +317,7 @@ async function main() {
         `  The image is uploaded and the post is written — only the commit/push remains.\n` +
         `  A stuck git lock (often Cursor's git worker) is the usual cause. Finish manually:\n\n` +
         `    find "${ROOT}/.git" -name '*.lock' -delete\n` +
-        `    git -C "${ROOT}" add -A && git -C "${ROOT}" commit -m "Add post ${slug}" && git -C "${ROOT}" push\n`,
+        `    git -C "${ROOT}" add -A && git -C "${ROOT}" commit -m "Add post ${slug}" && git -C "${ROOT}" push -u origin HEAD\n`,
     );
     process.exit(1);
   }
