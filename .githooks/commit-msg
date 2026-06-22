@@ -1,0 +1,13 @@
+#!/bin/sh
+#
+# commit-msg: strip any "Co-authored-by" trailer from the commit message so
+# agent tooling (Cursor, Claude Code, etc.) can't add contributors to the repo.
+# Runs on every commit because core.hooksPath = .githooks (see pre-commit).
+#
+# Edits the message in place; never blocks a commit. Genuine co-author to keep?
+# Add it back by hand after committing, or bypass with: git commit --no-verify
+
+msg_file="$1"
+tmp="$(mktemp)"
+grep -viE '^[[:space:]]*co-authored-by:' "$msg_file" > "$tmp" || true
+mv "$tmp" "$msg_file"

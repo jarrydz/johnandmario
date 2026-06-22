@@ -87,6 +87,7 @@ for (let i = 0; i < args.length; i++) {
 const dryRun = has('--dry-run');
 const noPush = has('--no-push');
 const skipConfirm = has('-y') || has('--yes');
+const jz = has('--jz'); // mark this as JZ's own photography (provenance)
 const model = getFlag('--model', DEFAULT_MODEL);
 const extraTags = (getFlag('--tags', '') || '')
   .split(',')
@@ -244,6 +245,7 @@ async function main() {
     '---',
     `date: ${JSON.stringify(dateIso)}`,
     'post_type: photo',
+    jz ? 'jz: true' : null,
     title ? `title: ${JSON.stringify(title)}` : null,
     `r2_key: ${JSON.stringify(r2Key)}`,
     `image_width: ${meta.width}`,
@@ -268,6 +270,7 @@ async function main() {
   console.log(`  alt       ${cap.alt}`);
   console.log(`  desc      ${cap.description}`);
   console.log(`  tags      ${tags.join(', ') || '—'}`);
+  if (jz) console.log('  jz        own photo');
   console.log('────────────────────────────────────────────\n');
 
   // 6. Confirm.

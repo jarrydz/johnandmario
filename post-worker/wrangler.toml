@@ -1,0 +1,28 @@
+# John & Mario — phone-posting Worker.
+# Receives an image from an iOS Shortcut, captions it, uploads the original to
+# R2, and commits the markdown post to GitHub (which triggers the Pages deploy).
+#
+# Deploy from this folder with:  npx wrangler deploy
+# The deployed URL will be:      https://johnandmario-post.<your-subdomain>.workers.dev
+# (wrangler prints the exact URL after deploy — paste it into the iOS Shortcut.)
+#
+# Secrets (set once, never in this file — see README):
+#   npx wrangler secret put ANTHROPIC_API_KEY
+#   npx wrangler secret put GITHUB_TOKEN
+#   npx wrangler secret put POST_TOKEN
+
+name = "johnandmario-post"
+main = "src/index.js"
+compatibility_date = "2026-05-01"
+
+# Same bucket the image Worker serves from — new uploads land under new/.
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "johnandmario-images"
+
+# Non-secret config. Change here if the repo or default branch ever moves.
+[vars]
+GITHUB_REPO = "jarrydz/johnandmario"
+GIT_BRANCH = "main"
+AUTHOR_NAME = "Jarryd Z"
+AUTHOR_EMAIL = "jarrydzankovic@gmail.com"

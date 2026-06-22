@@ -33,6 +33,7 @@ const posts = defineCollection({
         image_alt: z.string().optional(), // required whenever an image is present
         description: z.string().optional(),
         post_type: z.enum(['photo', 'text', 'quote', 'link']).default('photo'),
+        jz: z.boolean().optional(), // provenance: true = JZ's own photography (quiet metadata; expose later)
         tumblr_url: z.string().url().optional(), // original Tumblr permalink for migrated posts
         source: z.string().optional(), // original creator, when known
         source_url: z.string().url().optional(), // link to the original source, when known

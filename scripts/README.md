@@ -43,6 +43,7 @@ Flags:
 | Flag | Effect |
 | --- | --- |
 | `--tags a,b,c` | extra tags, merged with the AI tags |
+| `--jz` | mark as your own photography — adds `jz: true` (provenance metadata) |
 | `--date <ISO>` | post date (default: now) |
 | `--title "…"` | optional title |
 | `--source "…"` / `--source-url <URL>` | attribution line |
