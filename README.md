@@ -8,6 +8,7 @@ Built with [Astro](https://astro.build/) and deployed to GitHub Pages.
 
 - **Live site:** https://jarrydz.github.io/johnandmario/
 - **Stack:** Astro static output, Markdown content collections, Cloudflare R2 + Worker for images, Pagefind for client-side search, GitHub Actions for deploy.
+- **Posting:** see [POSTING.md](./POSTING.md) — the day-to-day cheat-sheet (`jm`, the phone Shortcut, tagging your own photos).
 
 ## Two modes
 
