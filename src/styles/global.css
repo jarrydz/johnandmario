@@ -569,6 +569,67 @@ main {
   text-align: center;
 }
 
+/* ---- Search results (Browse page; injected via innerHTML) ---- */
+.search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin: 1rem 0 3rem;
+}
+.search-result {
+  display: grid;
+  grid-template-columns: 192px 1fr;
+  gap: 1rem;
+  text-decoration: none;
+  color: inherit;
+}
+.search-result * {
+  text-decoration: none;
+}
+.search-result:hover {
+  opacity: 0.85;
+}
+.search-result .thumb {
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  background: var(--color-rule);
+}
+.search-result .thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.search-result .meta {
+  font-size: 0.85rem;
+  color: var(--color-muted);
+  margin: 0 0 0.25rem;
+}
+.search-result .excerpt {
+  margin: 0 0 0.4rem;
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+.search-result .excerpt mark {
+  background: transparent;
+  color: var(--color-text);
+  font-weight: 600;
+  padding: 0;
+}
+.search-result .tags {
+  font-size: 0.8rem;
+}
+.search-empty {
+  color: var(--color-muted);
+  font-size: 0.9rem;
+  margin: 1rem 0;
+}
+@media (max-width: 600px) {
+  .search-result {
+    grid-template-columns: 144px 1fr;
+    gap: 0.75rem;
+  }
+}
+
 /* ---- Prose (about page, post bodies) ---- */
 .prose {
   max-width: 38rem;
