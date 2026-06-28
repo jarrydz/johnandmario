@@ -166,6 +166,43 @@ async function runRetry(cmd, argv, { attempts = 4, delayMs = 1500, label, ...opt
   throw lastErr;
 }
 
+// Push, recovering from the two failures that strand an already-written post:
+//   • a transient .lock from an editor's git worker — back off and retry;
+//   • a diverged remote ("fetch first" / "[rejected]") because origin advanced
+//     since our last fetch — pull --rebase to replay our commit, then re-push.
+// runRetry can't tell these apart (it inherits stdio and never reads stderr),
+// so push gets its own loop that captures stderr and branches on the cause.
+function pushOnce(branch) {
+  return new Promise((resolve) => {
+    const child = spawn('git', ['push', '-u', 'origin', branch], { cwd: ROOT, stdio: ['inherit', 'inherit', 'pipe'] });
+    let stderr = '';
+    child.stderr.on('data', (d) => {
+      stderr += d;
+      process.stderr.write(d);
+    });
+    child.on('close', (code) => resolve({ code, stderr }));
+  });
+}
+
+async function gitPush(branch = 'HEAD') {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const { code, stderr } = await pushOnce(branch);
+    if (code === 0) return;
+    if (/fetch first|\[rejected\]|non-fast-forward/i.test(stderr)) {
+      process.stdout.write('  Remote moved on — pulling with rebase, then re-pushing…\n');
+      await runRetry('git', ['pull', '--rebase', 'origin', 'main'], { cwd: ROOT, label: 'git pull --rebase' });
+      continue;
+    }
+    if (/\.lock|another git process|Unable to create/i.test(stderr) && attempt < 4) {
+      process.stdout.write("  git push blocked (an editor's git worker?) — retrying…\n");
+      await sleep(1500);
+      continue;
+    }
+    throw new Error(`git push exited ${code}`);
+  }
+  throw new Error('git push failed after rebase/lock retries');
+}
+
 async function caption(buffer) {
   if (dryRun) {
     return {
@@ -311,16 +348,18 @@ async function main() {
     if (noPush) {
       console.log(`\nCommitted, not pushed (--no-push). Run "git push" to deploy.`);
     } else {
-      await runRetry('git', ['push', '-u', 'origin', 'HEAD'], { cwd: ROOT, label: 'git push' });
+      await gitPush('HEAD');
       console.log(`\n✓ Pushed. Live in ~1–2 min at ${SITE_BASE}/posts/${slug}/`);
     }
   } catch (e) {
     console.error(
       `\n✗ Git step failed after retries: ${e.message}\n\n` +
         `  The image is uploaded and the post is written — only the commit/push remains.\n` +
-        `  A stuck git lock (often Cursor's git worker) is the usual cause. Finish manually:\n\n` +
-        `    find "${ROOT}/.git" -name '*.lock' -delete\n` +
-        `    git -C "${ROOT}" add -A && git -C "${ROOT}" commit -m "Add post ${slug}" && git -C "${ROOT}" push -u origin HEAD\n`,
+        `  Usual cause is a diverged remote or a stuck git lock. Finish manually:\n\n` +
+        `    git -C "${ROOT}" add -A && git -C "${ROOT}" commit -m "Add post ${slug}"\n` +
+        `    git -C "${ROOT}" pull --rebase origin main && git -C "${ROOT}" push -u origin HEAD\n\n` +
+        `  If a lock is stuck instead, clear it first:\n` +
+        `    find "${ROOT}/.git" -name '*.lock' -delete\n`,
     );
     process.exit(1);
   }
