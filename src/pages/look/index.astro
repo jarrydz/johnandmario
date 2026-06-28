@@ -88,16 +88,21 @@ const jzFirstChunk = jzItems.slice(0, LOOK_CHUNK);
 
     const MIN = 1;
     const MAX = 8;
-    const DEFAULT_COLS = 3;
+    // Phones can't read a wide grid, so cap density lower there — but still let
+    // More/Less step 1 → 2 → 3 instead of locking to a single column.
+    const MOBILE_MAX = 3;
     // Grid width as a share of the page, indexed by column count (1–8).
     const WIDTH_PCT = { 1: 50, 2: 66, 3: 80, 4: 88, 5: 93, 6: 97, 7: 100, 8: 100 };
 
-    // Below this width a multi-column grid is unreadable, so collapse to one
-    // column regardless of the chosen density.
     const mqSingle = window.matchMedia('(max-width: 600px)');
-    const renderCols = () => (mqSingle.matches ? 1 : cols);
+    // Max columns allowed at the current viewport.
+    const colCap = () => (mqSingle.matches ? MOBILE_MAX : MAX);
+    // Start at one column on phones, three on larger screens.
+    const DEFAULT_COLS = mqSingle.matches ? 1 : 3;
 
-    const clampCols = (n) => Math.min(MAX, Math.max(MIN, n));
+    const clampCols = (n) => Math.min(colCap(), Math.max(MIN, n));
+    // Effective columns = chosen density, clamped to the viewport cap.
+    const renderCols = () => clampCols(cols);
     const enc = (k) => k.split('/').map(encodeURIComponent).join('/');
     const url = (k, w, f) => `${cdnBase}/${enc(k)}?w=${w}&f=${f}&q=80`;
     const usableWidths = (w) => {
@@ -232,7 +237,7 @@ const jzFirstChunk = jzItems.slice(0, LOOK_CHUNK);
     const setCols = (n) => {
       cols = clampCols(n);
       if (less) less.disabled = cols <= MIN;
-      if (more) more.disabled = cols >= MAX;
+      if (more) more.disabled = cols >= colCap();
       relayout();
       if (!done && isSentinelNear()) loadMore();
     };
@@ -250,7 +255,7 @@ const jzFirstChunk = jzItems.slice(0, LOOK_CHUNK);
       }
     }
 
-    // Always start at three columns; the reader adjusts with More/Less.
+    // Start at the viewport default (1 on phones, 3 otherwise); reader adjusts.
     setCols(DEFAULT_COLS);
     if (items.length === 0) {
       setStatus(isJz ? 'No photographs tagged yet.' : '');
@@ -259,11 +264,9 @@ const jzFirstChunk = jzItems.slice(0, LOOK_CHUNK);
       observer.observe(sentinel);
     }
 
-    // Re-lay out when crossing the single-column breakpoint.
-    mqSingle.addEventListener('change', () => {
-      relayout();
-      if (!done && isSentinelNear()) loadMore();
-    });
+    // Crossing the phone breakpoint re-clamps density to the new cap and
+    // refreshes the More/Less disabled states (setCols relayouts + refills).
+    mqSingle.addEventListener('change', () => setCols(cols));
 
     more && more.addEventListener('click', () => setCols(cols + 1));
     less && less.addEventListener('click', () => setCols(cols - 1));
