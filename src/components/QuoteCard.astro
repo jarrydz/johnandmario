@@ -3,15 +3,32 @@ import type { CollectionEntry } from 'astro:content';
 
 interface Props {
   quote: CollectionEntry<'quotes'>;
+  /** Link to the quote's bespoke experience. Omitted = read in place: plain
+      card, no link, no badge (ADR 0015). */
+  href?: string;
 }
 
-const { quote } = Astro.props;
+const { quote, href } = Astro.props;
 const { attribution, source } = quote.data;
 const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
 const byline = attribution ?? source ?? '';
 ---
 
 <li class="quote-card">
-  <blockquote class="quote-card-body">{body}</blockquote>
-  {byline && <p class="quote-card-author">{byline}</p>}
+  {
+    href ? (
+      <a class="quote-card-link" href={href}>
+        <blockquote class="quote-card-body">{body}</blockquote>
+        {byline && <p class="quote-card-author">{byline}</p>}
+        <span class="quote-card-badge" aria-hidden="true">
+          ↗
+        </span>
+      </a>
+    ) : (
+      <>
+        <blockquote class="quote-card-body">{body}</blockquote>
+        {byline && <p class="quote-card-author">{byline}</p>}
+      </>
+    )
+  }
 </li>

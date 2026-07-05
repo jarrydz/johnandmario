@@ -1,24 +1,29 @@
 ---
 import { getCollection } from 'astro:content';
 import type { GetStaticPaths } from 'astro';
-import QuoteLayout from '../../components/QuoteLayout.astro';
 import { quoteSlug } from '../../utils';
 
+// Bespoke experiences only (ADR 0015): a /read/[slug] page exists solely for
+// quotes with a matching src/experiences/<slug>.astro. Quotes without one are
+// read in place on the /read index — no fallback page.
+//
+// The glob appears twice because Astro hoists getStaticPaths out of the
+// component scope — it cannot close over frontmatter consts.
+
 export const getStaticPaths = (async () => {
-  const all = (await getCollection('quotes')).sort(
-    (a, b) => b.data.date.valueOf() - a.data.date.valueOf(),
-  );
-  return all.map((quote, i) => ({
-    params: { slug: quoteSlug(quote.id) },
-    props: {
-      quote,
-      prev: all[i - 1] ?? null,
-      next: all[i + 1] ?? null,
-    },
-  }));
+  const experiences = import.meta.glob('../../experiences/*.astro');
+  const all = await getCollection('quotes');
+  return all
+    .map((quote) => ({ quote, slug: quoteSlug(quote.id) }))
+    .filter(({ slug }) => `../../experiences/${slug}.astro` in experiences)
+    .map(({ quote, slug }) => ({ params: { slug }, props: { quote } }));
 }) satisfies GetStaticPaths;
 
-const { quote, prev, next } = Astro.props;
+const { quote } = Astro.props;
+const experiences = import.meta.glob<{ default: any }>('../../experiences/*.astro', {
+  eager: true,
+});
+const Experience = experiences[`../../experiences/${quoteSlug(quote.id)}.astro`].default;
 ---
 
-<QuoteLayout quote={quote} prev={prev} next={next} />
+<Experience quote={quote} />

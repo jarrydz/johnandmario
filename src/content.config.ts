@@ -60,9 +60,6 @@ const quotes = defineCollection({
         source: z.string().optional(),
         source_url: z.string().url().optional(),
         source_year: z.number().int().optional(),
-        mood: z
-          .enum(['epigram', 'literary', 'cinematic', 'handwritten', 'technical', 'broadside', 'fragment'])
-          .default('literary'),
         image: image().optional(),
         r2_key: z.string().optional(),
         image_width: z.number().int().positive().optional(),

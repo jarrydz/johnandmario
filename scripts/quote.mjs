@@ -17,7 +17,6 @@
  *   --source "..."     the work it's from
  *   --source-url URL   link for the source
  *   --year N           year of the source (source_year)
- *   --mood NAME        epigram | literary | cinematic | handwritten | technical | broadside | fragment
  *   --tags a,b,c       thematic tags
  *   --lang xx          language code, if not English
  *   --date <ISO>       filing date (default: now)
@@ -37,8 +36,6 @@ const SCRIPTS_DIR = import.meta.dirname;
 const ROOT = path.resolve(SCRIPTS_DIR, '..');
 const QUOTES_DIR = path.join(ROOT, 'src', 'content', 'quotes');
 const SITE_BASE = 'https://jarrydz.github.io/johnandmario';
-const MOODS = ['epigram', 'literary', 'cinematic', 'handwritten', 'technical', 'broadside', 'fragment'];
-const DEFAULT_MOOD = 'epigram'; // every existing quote uses this; override with --mood
 
 // ---- args -----------------------------------------------------------------
 const args = process.argv.slice(2);
@@ -50,7 +47,7 @@ const has = (name) => args.includes(name);
 
 const FLAGS_WITH_VALUES = new Set([
   '--by', '--attribution', '--source', '--source-url', '--year',
-  '--mood', '--tags', '--lang', '--date', '--slug', '--file',
+  '--tags', '--lang', '--date', '--slug', '--file',
 ]);
 let textArg;
 for (let i = 0; i < args.length; i++) {
@@ -70,7 +67,6 @@ const attribution = getFlag('--by') ?? getFlag('--attribution') ?? 'Unknown';
 const sourceText = getFlag('--source');
 const sourceUrl = getFlag('--source-url');
 const yearRaw = getFlag('--year');
-const moodRaw = getFlag('--mood', DEFAULT_MOOD);
 const lang = getFlag('--lang');
 const slugOverride = getFlag('--slug');
 const dateArg = getFlag('--date');
@@ -86,10 +82,6 @@ function fail(msg) {
 }
 
 const expand = (p) => (p.startsWith('~') ? path.join(os.homedir(), p.slice(1)) : p);
-
-// Validate mood early.
-const mood = String(moodRaw).toLowerCase();
-if (!MOODS.includes(mood)) fail(`--mood must be one of: ${MOODS.join(', ')}`);
 
 // Year, if given, must be an integer.
 let sourceYear = null;
@@ -234,7 +226,7 @@ async function main() {
   if (fs.existsSync(postPath)) fail(`A file already exists at src/content/quotes/${filename} — pass a different --slug.`);
 
   // Frontmatter (JSON.stringify gives safe quoted YAML scalars). Order mirrors
-  // the existing quotes: date, attribution, source, url, year, mood, tags, lang.
+  // the existing quotes: date, attribution, source, url, year, tags, lang.
   const tags = [...new Set(extraTags)];
   const fm = [
     '---',
@@ -243,7 +235,6 @@ async function main() {
     sourceText ? `source: ${JSON.stringify(sourceText)}` : null,
     sourceUrl ? `source_url: ${JSON.stringify(sourceUrl)}` : null,
     sourceYear != null ? `source_year: ${sourceYear}` : null,
-    `mood: ${mood}`,
     tags.length ? `tags: ${JSON.stringify(tags)}` : null,
     lang ? `lang: ${JSON.stringify(lang)}` : null,
     '---',
@@ -259,7 +250,6 @@ async function main() {
   console.log(`  quote     “${body.replace(/\s+/g, ' ').slice(0, 80)}${body.length > 80 ? '…' : ''}”`);
   console.log(`  by        ${attribution || '—'}`);
   console.log(`  source    ${[sourceText, sourceYear].filter(Boolean).join(', ') || '—'}`);
-  console.log(`  mood      ${mood}`);
   console.log(`  tags      ${tags.join(', ') || '—'}`);
   console.log(`  file      src/content/quotes/${filename}`);
   console.log(`  url       ${SITE_BASE}/read/${slug}/`);

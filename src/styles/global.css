@@ -71,57 +71,6 @@
   --color-rule: rgba(26, 26, 26, 0.16);
 }
 
-/* ---- Mood preset palette tokens (Read mode) ----
-   Each preset bundles a background, foreground, and optional accent. Body
-   sets data-mood when a quote is in the immersive view; descendant elements
-   reference var(--bg) / var(--fg) / var(--accent) only. See design-system.md. */
-[data-mood='epigram'] {
-  --bg: #f8f6f2;
-  --fg: #0e0e0c;
-  --accent: #e8a33d;
-  --quote-font: var(--font-display);
-}
-[data-mood='literary'] {
-  --bg: #f4ece1;
-  --fg: #1a1612;
-  --accent: transparent;
-  --quote-font: var(--font-serif);
-}
-[data-mood='technical'] {
-  --bg: #0f1115;
-  --fg: #e8e8e8;
-  --accent: #50c878;
-  --quote-font: var(--font-mono);
-}
-[data-mood='cinematic'] {
-  --bg: #000;
-  --fg: #f0f0f0;
-  --accent: transparent;
-  --quote-font: var(--font-display);
-}
-[data-mood='handwritten'] {
-  --bg: #eee7d9;
-  --fg: #2c2620;
-  --accent: transparent;
-  --quote-font: var(--font-serif);
-}
-[data-mood='broadside'] {
-  --bg: #e63946;
-  --fg: #fff;
-  --accent: #ffd60a;
-  --quote-font: var(--font-display);
-}
-[data-mood='fragment'] {
-  --bg: #f2f0ec;
-  --fg: #1a1a1a;
-  --accent: #e63946;
-  --quote-font: var(--font-serif);
-}
-body[data-mood] {
-  background: var(--bg);
-  color: var(--fg);
-}
-
 ::selection {
   background: #ff5000;
   color: #fff;
@@ -654,6 +603,7 @@ main {
   }
 }
 .quote-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -664,6 +614,44 @@ main {
   border-radius: 4px;
   background: rgba(237, 228, 221, 0.03);
   color: var(--color-text);
+}
+/* A card with a bespoke experience is a door: the whole card is the tap
+   target, flagged by the hairline ↗ badge (decorative — the link carries the
+   accessible name). Cards without one are read in place: no link, no badge. */
+.quote-card-link {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1.25rem;
+  flex: 1;
+  margin: -1.75rem -1.75rem -1.5rem;
+  padding: 1.75rem 1.75rem 1.5rem;
+  color: inherit;
+  text-decoration: none;
+  border-radius: inherit;
+}
+.quote-card-link:focus-visible {
+  outline: 2px solid var(--color-text);
+  outline-offset: 2px;
+}
+.quote-card-badge {
+  position: absolute;
+  top: 0.9rem;
+  right: 0.9rem;
+  width: 1.6rem;
+  height: 1.6rem;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--color-rule);
+  border-radius: 50%;
+  font-size: 0.75rem;
+  line-height: 1;
+  color: var(--color-muted);
+}
+.quote-card-link:hover .quote-card-badge,
+.quote-card-link:focus-visible .quote-card-badge {
+  color: var(--color-text);
+  border-color: var(--color-muted);
 }
 .quote-card-body {
   margin: 0;
@@ -679,47 +667,6 @@ main {
   font-size: 0.82rem;
   letter-spacing: 0.06em;
   color: var(--color-muted);
-}
-
-/* ---- Read mode — immersive (shared chrome) ---- */
-.quote-layout {
-  min-height: calc(100vh - 6rem);
-  display: flex;
-  flex-direction: column;
-}
-.quote-layout-main {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem 1.5rem 3rem;
-}
-.quote-prev-next {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1rem 1.5rem 2rem;
-  font-size: 0.85rem;
-  color: var(--color-muted);
-}
-.quote-prev-next a {
-  color: inherit;
-  text-decoration: none;
-  letter-spacing: 0.04em;
-}
-.quote-prev-next a:hover {
-  color: var(--fg, var(--color-text));
-  opacity: 1;
-}
-.quote-prev-next .spacer {
-  flex: 1;
-}
-
-/* The wide container the immersive presets break out into, when included. */
-.container-wide {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 0 1.5rem;
 }
 
 @media (max-width: 600px) {

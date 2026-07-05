@@ -1,7 +1,6 @@
 ---
 date: 2026-05-31
 attribution: Unknown
-mood: epigram
 tags: [manifestation, agency, creation, possibility]
 ---
 
