@@ -1,0 +1,125 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import BaseHead from '../components/BaseHead.astro';
+import { withBase } from '../utils';
+
+/**
+ * ExperienceFrame — the gallery wall for bespoke quote experiences (ADR 0015).
+ *
+ * The only shared skeleton: <head> via BaseHead, a full-bleed body, and one
+ * back link. Everything else belongs to the page. Deliberately NOT BaseLayout —
+ * no Header, no .container, no prev/next.
+ *
+ * Floors the frame guarantees:
+ * - Legibility: the default slot falls back to the quote as semantic DOM
+ *   (<blockquote> + <footer>/<cite>), so the words exist even with no art.
+ *   Pages that fill the slot must keep the quote as real, selectable text.
+ * - Reduced motion: under prefers-reduced-motion the frame kills animation
+ *   globally, so the page's resting styles ARE its still. Pages should still
+ *   gate their own motion behind @media (prefers-reduced-motion: no-preference).
+ */
+
+interface Props {
+  quote: CollectionEntry<'quotes'>;
+  title?: string;
+  description?: string;
+}
+
+const { quote } = Astro.props;
+const { attribution } = quote.data;
+
+// Derive title/description from the quote body, same as QuoteLayout — quotes
+// don't carry titles.
+const rawBody = (quote.body ?? '').replace(/\s+/g, ' ').trim();
+const TITLE_MAX = 60;
+const titleHint =
+  rawBody.length > TITLE_MAX ? rawBody.slice(0, TITLE_MAX).replace(/\s+\S*$/, '') + '…' : rawBody;
+const title = Astro.props.title ?? titleHint;
+const description = Astro.props.description ?? rawBody.slice(0, 200);
+---
+
+<!doctype html>
+<html lang="en-GB">
+  <head>
+    <BaseHead title={title} description={description} />
+  </head>
+  <body class="experience">
+    <a class="experience-back" href={withBase('/read')}>← All quotes</a>
+    <slot>
+      <blockquote class="experience-fallback">
+        <p>{rawBody}</p>
+        {attribution && <footer>— <cite>{attribution}</cite></footer>}
+      </blockquote>
+    </slot>
+  </body>
+</html>
+
+<style>
+  body.experience {
+    /* Full-bleed canvas. A page may override to a bounded composition. */
+    min-height: 100dvh;
+    margin: 0;
+    overscroll-behavior: none;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right)
+      env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  .experience-back {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 0.9rem);
+    left: calc(env(safe-area-inset-left, 0px) + 1rem);
+    z-index: 10;
+    font-family: var(--font-display);
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    text-decoration: none;
+    /* Experiences own their palette, so the frame can't know what it sits on —
+       difference-blend white stays visible over any background. */
+    color: #fff;
+    mix-blend-mode: difference;
+    opacity: 0.5;
+    transition: opacity 150ms ease;
+  }
+  .experience-back:hover,
+  .experience-back:focus-visible {
+    opacity: 1;
+  }
+  .experience-back:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 4px;
+  }
+  .experience-fallback {
+    margin: 0;
+    min-height: 100dvh;
+    display: grid;
+    place-content: center;
+    gap: 1.5rem;
+    padding: 4rem clamp(1.25rem, 5vw, 3rem);
+    font-family: var(--font-display);
+    font-size: clamp(1.4rem, 4vw, 2.2rem);
+    line-height: 1.3;
+    max-width: 60rem;
+    margin-inline: auto;
+  }
+  .experience-fallback p {
+    margin: 0;
+  }
+  .experience-fallback footer {
+    font-size: 0.55em;
+    opacity: 0.7;
+  }
+</style>
+
+<style is:global>
+  /* Reduced-motion floor (ADR 0015): the page's resting styles are its still.
+     Non-negotiable — applies even if a page forgets to gate its own motion. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+</style>

@@ -1,0 +1,233 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import ExperienceFrame from '../layouts/ExperienceFrame.astro';
+
+/**
+ * "We must all suffer from one of two pains…" — Jim Rohn
+ *
+ * The quote is about weight, so the page is a column of increasing gravity:
+ * pale air at the top, lead at the bottom. "discipline" floats hairline-thin
+ * in the light; "regret" is a black slab sunk to the floor. Between them, a
+ * balance beam tipped toward the heavy side. Type weight carries the meaning —
+ * ounces at 100, tons at 900.
+ */
+
+interface Props {
+  quote: CollectionEntry<'quotes'>;
+}
+
+const { quote } = Astro.props;
+---
+
+<ExperienceFrame quote={quote}>
+  <main class="stage">
+    <blockquote class="scale">
+      <p class="setup">We must all suffer from one of two pains:</p>
+      <p class="pain pain-discipline">
+        <span class="pain-label">the pain of</span>
+        <span class="word">discipline</span>
+      </p>
+      <p class="fulcrum"><span class="or">or</span></p>
+      <p class="pain pain-regret">
+        <span class="pain-label">the pain of</span>
+        <span class="word">regret.</span>
+      </p>
+      <p class="coda">
+        The difference is discipline weighs <em class="ounces">ounces</em> while regret weighs
+        <em class="tons">tons</em>.
+      </p>
+    </blockquote>
+    <footer class="attribution">— <cite>Jim Rohn</cite></footer>
+  </main>
+</ExperienceFrame>
+
+<style>
+  .stage {
+    /* The gradient is the subject: air above, lead below. */
+    --air: #eceded;
+    --haze: #cfd2d4;
+    --iron: #4a4e54;
+    --lead: #17181b;
+    --ink: #1b1d20;
+    --bone: #f2f1ec;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(180deg, var(--air) 0%, var(--haze) 42%, var(--iron) 68%, var(--lead) 100%);
+    color: var(--ink);
+    font-family: 'Inter Variable', var(--font-display);
+    overflow: hidden;
+  }
+  .scale {
+    margin: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    text-align: center;
+    padding: clamp(4rem, 10vh, 6rem) 1.25rem 0;
+    gap: clamp(0.75rem, 2.5vh, 2rem);
+  }
+  .scale p {
+    margin: 0;
+  }
+  .setup {
+    font-size: clamp(0.85rem, 2.6vw, 1.05rem);
+    font-weight: 400;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    opacity: 0.75;
+  }
+  .pain {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1;
+  }
+  .pain-label {
+    font-size: clamp(0.75rem, 2.2vw, 0.95rem);
+    font-weight: 400;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    opacity: 0.6;
+    margin-bottom: 1em;
+  }
+  /* Ounces: hairline weight, loosely spread — light things drift apart. */
+  .pain-discipline .word {
+    font-size: clamp(2.5rem, 11vw, 6.5rem);
+    font-weight: 100;
+    letter-spacing: 0.09em;
+  }
+  /* The beam, tipped toward the heavy side. Resting state is already tipped. */
+  .fulcrum {
+    width: min(70vw, 26rem);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+    transform: rotate(-4deg);
+  }
+  .fulcrum::before,
+  .fulcrum::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: currentColor;
+    opacity: 0.45;
+  }
+  .or {
+    font-size: clamp(0.8rem, 2.4vw, 1rem);
+    font-style: italic;
+    opacity: 0.7;
+  }
+  /* Tons: maximum weight, compressed tight, sunk into the dark. */
+  .pain-regret {
+    color: var(--bone);
+  }
+  .pain-regret .word {
+    font-size: clamp(3.4rem, 17vw, 11rem);
+    font-weight: 900;
+    letter-spacing: -0.04em;
+    line-height: 0.85;
+  }
+  .coda {
+    color: var(--bone);
+    font-size: clamp(0.95rem, 3vw, 1.2rem);
+    font-weight: 300;
+    line-height: 1.5;
+    max-width: 34ch;
+    opacity: 0.85;
+    padding-bottom: 0.5rem;
+  }
+  .coda em {
+    font-style: normal;
+  }
+  .coda .ounces {
+    font-weight: 100;
+    letter-spacing: 0.12em;
+  }
+  .coda .tons {
+    font-weight: 900;
+  }
+  .attribution {
+    color: var(--bone);
+    text-align: center;
+    font-family: 'Inter Variable', var(--font-display);
+    font-size: 0.85rem;
+    letter-spacing: 0.1em;
+    opacity: 0.6;
+    padding: 0 1.25rem calc(env(safe-area-inset-bottom, 0px) + 1.5rem);
+  }
+  .attribution cite {
+    font-style: normal;
+  }
+
+  /* One orchestrated load: the setup fades in, discipline drifts up and keeps
+     floating, regret drops and settles under its own mass, then the beam tips.
+     All motion lives here; the resting styles above ARE the reduced-motion still. */
+  @media (prefers-reduced-motion: no-preference) {
+    .setup,
+    .pain-discipline,
+    .coda,
+    .attribution {
+      animation: appear 800ms ease both;
+    }
+    .pain-discipline {
+      animation-delay: 200ms;
+    }
+    .coda {
+      animation-delay: 1400ms;
+    }
+    .attribution {
+      animation-delay: 1600ms;
+    }
+    .pain-discipline .word {
+      display: inline-block;
+      animation: float 5s ease-in-out 1s infinite alternate;
+    }
+    .pain-regret .word {
+      display: inline-block;
+      animation: drop 900ms cubic-bezier(0.34, 1.3, 0.5, 1) 500ms both;
+    }
+    .fulcrum {
+      animation: tip 700ms ease 1100ms both;
+    }
+    @keyframes appear {
+      from {
+        opacity: 0;
+        transform: translateY(0.5rem);
+      }
+    }
+    @keyframes float {
+      from {
+        transform: translateY(0);
+      }
+      to {
+        transform: translateY(-0.12em);
+      }
+    }
+    @keyframes drop {
+      0% {
+        opacity: 0;
+        transform: translateY(-0.5em);
+      }
+      60% {
+        opacity: 1;
+        transform: translateY(0.03em) scaleY(0.96);
+      }
+      100% {
+        opacity: 1;
+        transform: none;
+      }
+    }
+    @keyframes tip {
+      from {
+        transform: rotate(0deg);
+      }
+      to {
+        transform: rotate(-4deg);
+      }
+    }
+  }
+</style>

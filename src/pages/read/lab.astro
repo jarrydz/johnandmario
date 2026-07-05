@@ -1,0 +1,104 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { withBase, quoteSlug } from '../../utils';
+
+/**
+ * /read/lab — dev workbench for bespoke experiences (ADR 0015).
+ *
+ * Lists every quote and flags which have a bespoke page in src/experiences/
+ * versus which are read in place on the /read index (no page of their own).
+ * Functional, not designed.
+ */
+
+const quotes = (await getCollection('quotes')).sort(
+  (a, b) => b.data.date.valueOf() - a.data.date.valueOf(),
+);
+
+// Slugs with a bespoke page — keys only, so no eager import needed.
+const experienceSlugs = new Set(
+  Object.keys(import.meta.glob('../../experiences/*.astro')).map((p) =>
+    p.replace(/^.*\//, '').replace(/\.astro$/, ''),
+  ),
+);
+
+const built = quotes.filter((q) => experienceSlugs.has(quoteSlug(q.id))).length;
+---
+
+<BaseLayout title="Lab" description="Workbench: bespoke experiences vs quotes read in place.">
+  <main class="lab">
+    <h1>Lab</h1>
+    <p class="lab-summary">
+      {built} of {quotes.length} quotes have a bespoke experience; the rest are read in place on
+      /read. Scaffold the next one with <code>npm run experience &lt;slug&gt;</code>.
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>Quote</th>
+          <th>Renders as</th>
+        </tr>
+      </thead>
+      <tbody>
+        {
+          quotes.map((quote) => {
+            const slug = quoteSlug(quote.id);
+            const bespoke = experienceSlugs.has(slug);
+            return (
+              <tr>
+                <td>
+                  {bespoke ? <a href={withBase(`/read/${slug}`)}>{slug}</a> : slug}
+                  {quote.data.attribution && <span class="lab-by"> — {quote.data.attribution}</span>}
+                </td>
+                <td>
+                  {bespoke ? (
+                    <strong class="lab-bespoke">bespoke</strong>
+                  ) : (
+                    <span class="lab-in-place">read in place</span>
+                  )}
+                </td>
+              </tr>
+            );
+          })
+        }
+      </tbody>
+    </table>
+  </main>
+</BaseLayout>
+
+<style>
+  .lab {
+    padding: 2rem 0 4rem;
+  }
+  .lab-summary code {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+  }
+  th,
+  td {
+    text-align: left;
+    padding: 0.5rem 1rem 0.5rem 0;
+    border-bottom: 1px solid var(--color-rule);
+    vertical-align: baseline;
+  }
+  th {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-muted);
+  }
+  .lab-by {
+    color: var(--color-muted);
+  }
+  .lab-bespoke {
+    color: var(--color-text);
+  }
+  .lab-in-place {
+    color: var(--color-muted);
+  }
+</style>
