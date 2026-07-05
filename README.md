@@ -13,7 +13,7 @@ Built with [Astro](https://astro.build/) and deployed to GitHub Pages.
 ## Two modes
 
 - **[Look](https://jarrydz.github.io/johnandmario/look)** — the photo archive (6,727 images from the original Tumblr). Image-first, reverse chronological.
-- **[Read](https://jarrydz.github.io/johnandmario/read)** — quotes worth keeping. Each lives in a typographic *mood* preset (Epigram, Literary, Technical for Phase 1; four more in Phase 2).
+- **[Read](https://jarrydz.github.io/johnandmario/read)** — quotes worth keeping. Quotes are read in place on the index; a quote worth a page gets its own bespoke experience at `/read/<slug>` (ADR 0015).
 
 `/` is a typographic portal — pick a mode.
 
@@ -45,8 +45,8 @@ npm run preview  # serve the built site locally
 ## Add content
 
 Day-to-day authoring lives in **[docs/authoring.md](docs/authoring.md)**:
-frontmatter templates, mood picks, tag discipline, and the Obsidian-vault
-symlink workflow for composing quotes.
+frontmatter templates, bespoke experiences, tag discipline, and the
+Obsidian-vault symlink workflow for composing quotes.
 
 The fast paths:
 
@@ -68,7 +68,7 @@ search and caching approach, and where each piece of the system lives.
 
 Other top-level docs:
 
-- [docs/design-system.md](docs/design-system.md) — typography, palette tokens, the seven mood presets
+- [docs/design-system.md](docs/design-system.md) — typography, palette tokens, the experience frame contract
 - [docs/content-model.md](docs/content-model.md) — schemas, tagging strategy, relational queries
 - [docs/build-plan.md](docs/build-plan.md) — phased delivery plan (Phase 1 → Phase 5+)
 
@@ -88,23 +88,23 @@ Decisions are captured as ADRs in the Obsidian vault and symlinked into
 ├── scripts/                       # one-off import tooling (captioning, post generation)
 ├── src/
 │   ├── assets/images/             # local images (full R2 archive lives elsewhere)
-│   ├── components/                # Header, Footer, PostCard, QuoteCard, QuoteLayout, …
-│   │   └── presets/               # Epigram / Literary / Technical mood layouts
+│   ├── components/                # Header, Footer, PostCard, QuoteCard, …
 │   ├── content/posts/             # ← markdown photo posts
 │   ├── content/quotes/            # ← markdown quote entries
 │   ├── content.config.ts          # content collections + Zod schemas
-│   ├── layouts/                   # BaseLayout, PostLayout
+│   ├── experiences/               # ← bespoke quote pages, one per slug (ADR 0015)
+│   ├── layouts/                   # BaseLayout, PostLayout, ExperienceFrame
 │   ├── pages/
 │   │   ├── index.astro            # /          → typographic portal
 │   │   ├── look/[...page].astro   # /look      → paginated photo feed
 │   │   ├── read/index.astro       # /read      → quote grid
-│   │   ├── read/[slug].astro      # /read/<slug> → immersive quote in its mood preset
+│   │   ├── read/[slug].astro      # /read/<slug> → bespoke experience (only if one exists)
 │   │   ├── posts/[...id].astro    # /posts/<slug> → single photo (unchanged)
 │   │   ├── archive.astro          # /archive   → photo thumbnail grid with filters
 │   │   ├── search.astro           # /search    → Pagefind UI
 │   │   ├── about.astro
 │   │   └── rss.xml.js
-│   ├── styles/global.css          # @font-face, theme tokens, mood palettes, portal, /read
+│   ├── styles/global.css          # @font-face, theme tokens, portal, /read
 │   ├── consts.ts                  # title, description, CDN base, etc.
 │   └── utils.ts                   # base-path + date helpers
 └── LICENSE                        # MIT — covers code only, not images
