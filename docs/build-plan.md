@@ -1,12 +1,12 @@
 # Build Plan — John & Mario
 
-Status: Active. Written 2026-05-28.
+Status: Active. Written 2026-05-28. Updated 2026-07-05: the mood-preset system planned below shipped in Phase 1 and was later **removed** by [ADR 0015](adr/0015-bespoke-quote-experiences.md) — bespoke experiences replace it. Preset items are annotated rather than rewritten; no further preset work is scheduled.
 
 This document sequences the build of the multi-modal architecture. Each phase ships independently. Each phase ends with the site in a working, deployable state.
 
 ## Phase 1 — Foundations
 
-**Goal**: ship the portal, the new Read mode with three starter presets, and the rename of the current homepage to `/look`.
+**Goal**: ship the portal, the new Read mode with three starter presets *(shipped, presets since removed — ADR 0015)*, and the rename of the current homepage to `/look`.
 
 **Scope**:
 
@@ -22,7 +22,7 @@ This document sequences the build of the multi-modal architecture. Each phase sh
    - Create `src/content/quotes/` folder.
    - Set up the Obsidian vault symlink (see ADR 0010): `ln -s ~/Projects/code/play/johnandmario/src/content/quotes ~/Projects/vaults/play/projects/johnandmario/quotes`
    - Add quote template to `~/Projects/vaults/templates/quote.md` per [authoring.md](authoring.md).
-   - Seed with 5–10 hand-picked quotes covering at least three moods (recommended: Epigram, Literary, Technical to start).
+   - Seed with 5–10 hand-picked quotes.
 
 3. **Portal page** (`src/pages/index.astro`)
    - Replace current photo feed.
@@ -33,33 +33,24 @@ This document sequences the build of the multi-modal architecture. Each phase sh
 
 4. **Read — grid view** (`src/pages/read/index.astro`)
    - Reverse-chronological grid of quote cards.
-   - Each card shows the quote (truncated if long), attribution, mood as a visual hint.
-   - No filtering yet — Phase 2 adds tag/mood/author filters.
+   - Each card shows the quote (truncated if long) and attribution.
+   - No filtering yet — Phase 2 adds tag/author filters.
 
-5. **Read — immersive view** (`src/pages/read/[slug].astro`)
-   - Full-viewport, one quote, mood preset drives layout.
-   - Three presets built: **Epigram**, **Literary**, **Technical**.
-   - Plain prev/next links to chronological neighbours (no swipe / arrow keys yet — Phase 2).
-   - Attribution + source rendered per preset's style.
+5. **Read — immersive view** (`src/pages/read/[slug].astro`) *(done; preset rendering since removed — /read/[slug] now exists only for quotes with a bespoke experience, ADR 0015)*
+   - Full-viewport, one quote per page.
 
 6. **Components**
-   - New: `QuoteCard.astro` (grid view), `QuoteLayout.astro` (immersive view).
-   - New: `presets/Epigram.astro`, `presets/Literary.astro`, `presets/Technical.astro`.
+   - New: `QuoteCard.astro` (grid view). *(QuoteLayout and the preset components were built, then removed by ADR 0015.)*
    - Existing `PostCard.astro` and `PostLayout.astro` unchanged.
    - `Header.astro` updated: nav becomes **Look · Read · About**.
 
 7. **Typography setup**
    - Add variable fonts per [design-system.md](design-system.md): Inter, Source Serif 4, Monaspace. Self-hosted woff2 in `public/fonts/`.
-   - CSS custom property tokens for each mood preset's palette.
-
-8. **Mood preset attribution rendering**
-   - Each of the three starter presets (Epigram, Literary, Technical) must handle the case where `attribution` is absent — render no em-dash + name line. See ADR 0009.
-   - Cinematic preset (Phase 2) film-credit treatment: if attribution absent but `source` present, show source only.
 
 9. **Documentation**
    - This doc, [architecture.md](architecture.md), [design-system.md](design-system.md), [content-model.md](content-model.md), and [authoring.md](authoring.md) live in `docs/` (git-ignored working area). The ADRs are symlinked into the Obsidian vault at `docs/adr/` (canonical store).
 
-**Ship criterion**: Portal works, /look works, /read shows seeded quotes, three preset pages render distinct visual languages, nav links go to the right places, no broken existing URLs.
+**Ship criterion**: Portal works, /look works, /read shows seeded quotes, nav links go to the right places, no broken existing URLs. *(Met.)*
 
 **Estimated effort**: One focused weekend in Claude Code.
 
@@ -69,30 +60,23 @@ This document sequences the build of the multi-modal architecture. Each phase sh
 
 **Scope**:
 
-1. **Remaining presets**
-   - Cinematic, Handwritten, Broadside, Fragment.
-   - Each is its own focused design exercise. Ship one preset per session.
+1. **Bespoke experiences, one at a time** ([ADR 0015](adr/0015-bespoke-quote-experiences.md))
+   - `npm run experience <slug>` scaffolds; each page is its own focused design exercise. Ship one per session.
 
-2. **Swipe / arrow-key navigation** on `/read/[slug]`
-   - Touch swipe (mobile), arrow keys (desktop).
-   - URL updates via `history.pushState` so each position is shareable.
-   - Sequence is contextual — if filtered by tag, swipe stays inside the tag set.
-   - Progressive enhancement: without JS, prev/next remain as plain links.
-
-3. **Tag and mood filters on `/read`**
-   - URL params: `/read?tag=solitude`, `/read?mood=epigram`, `/read?tag=solitude&mood=literary`.
+2. **Tag and author filters on `/read`**
+   - URL params: `/read?tag=solitude`, `/read?tag=solitude&author=rohn`.
    - Filter UI: minimal type-led toggles, not chrome-heavy.
 
-4. **Portal hover previews**
+3. **Portal hover previews**
    - Soft image bleed behind **Look**.
    - Fragment of a randomised quote behind **Read**.
    - Refreshes on page load.
 
-5. **Quote-only RSS** at `/read/rss.xml`.
+4. **Quote-only RSS** at `/read/rss.xml`.
 
-6. **Pagefind index** extended to cover the `quotes` collection.
+5. **Pagefind index** extended to cover the `quotes` collection.
 
-**Ship criterion**: All seven presets work, immersive view feels alive (swipe, keyboard, URL sync), portal previews work, Read has its own RSS.
+**Ship criterion**: A steady cadence of bespoke experiences shipping, portal previews work, Read has its own RSS.
 
 ## Phase 3 — Relational
 
@@ -154,7 +138,6 @@ These are out of scope by deliberate decision (per [brief.md](../brief.md)):
 - Algorithmic feeds
 - Newsletter sign-up forms (use RSS instead)
 - Analytics beyond basic privacy-respecting metrics
-- Dark mode toggle (each preset has its own palette — no global toggle needed)
 - Engagement loops of any kind
 
 ## Decisions made along the way
@@ -163,12 +146,11 @@ Every meaningful technical or design decision during build should land as a new 
 
 ## Where this plan can change
 
-Phase boundaries are guidance, not contracts. If during Phase 1 you discover that swipe navigation is trivial to add and would feel incomplete without it, pull it forward. The phases exist to prevent biting off more than one weekend at a time, not to constrain.
+Phase boundaries are guidance, not contracts. If during Phase 1 you discover that the portal hover previews are trivial to add and the portal would feel incomplete without them, pull them forward. The phases exist to prevent biting off more than one weekend at a time, not to constrain.
 
 What should NOT change without an ADR:
 
 - Section names (Look, Read)
 - Two-collection content model
-- Mood preset count or names (once we settle them — currently seven)
 - Portal-as-homepage (no feed on `/`)
 - Curation framing (no engagement loops)

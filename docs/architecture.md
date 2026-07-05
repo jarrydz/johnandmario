@@ -22,8 +22,8 @@ The dual-aesthetic decision is deliberate. The site should *feel* like different
 | `/` | Portal page. Typographic doorway: **Look** and **Read** as massive type. No feed. | New — Phase 1 |
 | `/look` | Photo feed. Reverse-chronological grid. The current homepage moves here. | Renamed in Phase 1 |
 | `/look/[slug]` | Single photo post. | Existing, unchanged |
-| `/read` | Quote grid. Browse view. Filterable by tag, mood, author. | New — Phase 1 |
-| `/read/[slug]` | Immersive single quote. Mood preset drives layout. Swipe / arrow-key navigation between neighbours. | New — Phase 1 |
+| `/read` | Quote grid. Browse view; quotes without a bespoke page are read in place here. Filterable by tag, author (Phase 2). | New — Phase 1 |
+| `/read/[slug]` | Bespoke quote experience. Exists **only** for quotes with a page in `src/experiences/` ([ADR 0015](adr/0015-bespoke-quote-experiences.md)); other quotes have no page. | Reworked — ADR 0015 |
 | `/read/source/[slug]` | All quotes from one source (book/film/interview). | Phase 3 |
 | `/read/author/[slug]` | All quotes by one author. | Phase 3 |
 | `/all` | Combined reverse-chron feed. Quotes + photos + future modes intermingled. | Phase 4 |

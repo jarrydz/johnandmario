@@ -40,11 +40,6 @@ const quotes = defineCollection({
         source_url: z.string().url().optional(),
         source_year: z.number().int().optional(),
 
-        // Visual treatment
-        mood: z
-          .enum(['epigram', 'literary', 'cinematic', 'handwritten', 'technical', 'broadside', 'fragment'])
-          .default('literary'),
-
         // Optional atmosphere image (not source image — see ADR 0006)
         image: image().optional(),
         r2_key: z.string().optional(),
@@ -75,9 +70,8 @@ export const collections = { posts, quotes };
 - **`date`** — when *you* (the curator) added it, not when it was said. The archive is a record of what you noticed when.
 - **`attribution`** — optional. Who said it, when known. Many curated quotes have no preserved attribution and that's fine — see [ADR on attribution optionality](adr/0009-attribution-optional.md). If absent, the layout renders no attribution block. If you want a quote marked as "Found" or "Unknown", write that string into the field — it'll render as-is.
 - **`source`** + **`source_url`** + **`source_year`** — optional metadata. Powers Phase 3 source pages.
-- **`mood`** — drives the layout preset. Defaults to `literary` (safest fallback).
 - **`image`** / `r2_key` etc. — atmosphere images. Not the source. See [ADR 0006](adr/0006-dual-view-grid-and-immersive.md) for the source-vs-atmosphere distinction.
-- **`image_position`** — controls how the image relates to the type. Only Cinematic preset uses `backdrop` typically.
+- **`image_position`** — controls how the image relates to the type.
 - **`tags`** — the relational layer. See below.
 - **`lang`** — affects typography for non-English quotes (CJK fallbacks, RTL handling). Out of scope for Phase 1 but worth declaring now.
 
@@ -87,7 +81,7 @@ The quote text itself lives in the markdown body, not in frontmatter. This allow
 
 - Multi-line quotes with paragraph breaks
 - Inline emphasis (`*italic*`, `**bold**`)
-- Optional rich content (links, footnotes) that the Literary and Handwritten presets may render
+- Optional rich content (links, footnotes) that a bespoke experience may render
 
 Keep the body to the quote alone. No commentary. No author notes. (If commentary is wanted, add a `note:` frontmatter field in Phase 3.)
 
@@ -153,7 +147,7 @@ Three feeds, three audiences. Some subscribers want photos only. Some want quote
 
 ## Migration
 
-No existing quote content. Phase 1 seeds with 5–10 hand-picked quotes the author already loves, varied across at least three moods. This proves the system end-to-end.
+No existing quote content. Phase 1 seeds with 5–10 hand-picked quotes the author already loves. This proves the system end-to-end.
 
 If old Tumblr-era text posts (originally `post_type: 'quote'` in `posts`) need migrating, that's a Phase 3 one-off script. Out of scope for now.
 

@@ -21,6 +21,7 @@ Everything publishes by committing to GitHub, which auto-deploys. Live in ~1–2
 | Post a photo I took myself | `jm ~/path/photo.jpg --jz` |
 | Post a photo with extra tags | `jm ~/path/photo.jpg --tags architecture,timber` |
 | Post a quote | `jm "The quote text." --by "Author"` |
+| Give a quote its own page | `jmx <quote-slug>` |
 | Post from my phone | Photos → Share → **Post to J&M** |
 | Post my own photo from my phone | Photos → Share → **Post to J&M (yours)** |
 | Tag an already-posted photo as mine | `jztag <post-url>` |
@@ -69,8 +70,25 @@ A photo you took gets `jz: true` in its file. Three ways to set it, all identica
 | --- | --- |
 | `--by "…"` | attribution (defaults to `Unknown`) |
 | `--source "…"` / `--year N` | the work it's from |
-| `--mood <name>` | epigram (default) · literary · cinematic · handwritten · technical · broadside · fragment |
 | `--tags a,b,c` | thematic tags |
+
+---
+
+## Give a quote its own page (Read)
+
+Most quotes are read in place on `/read`. A quote worth more can get its own
+hand-designed, interactive page — the ones marked with a ↗ on the index.
+
+Two steps, in order:
+
+1. Post the quote first: `jm "…" --by "…"`. Note its slug — the bit after
+   `/read/` in its URL (e.g. `jim-rohn-we-must-all-suffer`).
+2. Scaffold the page: `jmx <slug>`. This stamps a blank, wired-up page in
+   `src/experiences/`. Then `npm run dev` and design it in the browser, live.
+
+`/read/lab` lists every quote and shows which have a page and which are still
+read in place. `jmx` refuses if the quote doesn't exist yet, or if the page is
+already there.
 
 ---
 
@@ -97,7 +115,7 @@ done. No tool, by design.
 
 ## Setup (once per Mac)
 
-The `jm`, `cdjm`, and `jztag` helpers live in `~/.zshrc`. On a new machine,
+The `jm`, `jmx`, `cdjm`, and `jztag` helpers live in `~/.zshrc`. On a new machine,
 re-add them:
 
 ```
@@ -110,6 +128,7 @@ jm() {
     (cd ~/Projects/code/play/johnandmario && npm run quote -- "$@")
   fi
 }
+jmx() { (cd ~/Projects/code/play/johnandmario && npm run experience -- "$@"); }
 jztag() {
   local s f r="$HOME/Projects/code/play/johnandmario"
   s="${1##*/posts/}"; s="${s%/}"; s="${s##*/}"

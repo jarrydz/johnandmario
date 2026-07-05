@@ -42,7 +42,6 @@ attribution: "Author Name"           # optional — omit entirely if unknown
 source: "Book or Film or Source"     # optional
 source_url: "https://..."            # optional
 source_year: 1968                    # optional
-mood: literary                       # required — pick from the seven moods
 tags: [tag1, tag2, tag3]             # optional — but strongly recommended
 
 # Optional atmosphere image:
@@ -65,9 +64,8 @@ The body is the quote itself — no commentary, no author notes. (If you want co
 - **`date`** — when *you* added the quote, not when it was said. The archive logs your curatorial moments.
 - **`attribution`** — optional. Omit entirely if the author is unknown or doesn't matter. Write `"Found"` or `"Unknown"` if you want that displayed. See [ADR 0009](adr/0009-attribution-optional.md).
 - **`source`** — book/film/interview/album/wherever the quote came from.
-- **`mood`** — picks the layout preset. See [design-system.md](design-system.md) for the seven options and their personalities. Defaults to `literary` if you forget.
 - **`tags`** — the relational backbone. Use lowercase, hyphenated, concept-led tags. Consult the starter vocabulary in [content-model.md](content-model.md). Aim for 3–7 tags per quote.
-- **`image`** + related fields — only needed if you want an atmosphere image (typically only for Cinematic-mood quotes). Image alt text is required when an image is present (accessibility).
+- **`image`** + related fields — only needed if you want an atmosphere image. Image alt text is required when an image is present (accessibility).
 
 ### Filename convention
 
@@ -119,6 +117,18 @@ Same flow. Open the file in Obsidian or your editor, change the frontmatter or b
 
 To **replace** one of the seed quotes shipped with Phase 1: edit its `.md` file or delete and recreate with a new slug. Both work.
 
+## Bespoke experiences
+
+Any quote can be given its own hand-designed page ([ADR 0015](adr/0015-bespoke-quote-experiences.md)). A `/read/<slug>` page exists **only** if `src/experiences/<slug>.astro` does; quotes without one are read in place on `/read` (no page of their own). On the index, a bespoke quote's card is a link marked with the ↗ badge; the rest are plain cards.
+
+```bash
+npm run experience <slug>   # e.g. npm run experience jim-rohn-we-must-all-suffer
+```
+
+This stamps `src/experiences/<slug>.astro` pre-wired with `ExperienceFrame` (head, back link, full-bleed body) and the quote as real text — open the file and make the art. It refuses if no quote matches the slug or if the page already exists.
+
+Two floors are non-negotiable: the quote stays **real, selectable text** (`<blockquote>` + attribution), and all motion lives behind `@media (prefers-reduced-motion: no-preference)` — the resting styles are the reduced-motion still. Libraries are vendored version-pinned under `src/lib/vendor/` (no CDNs, no `latest`). The workbench at `/read/lab` lists every quote and shows which are bespoke versus read in place.
+
 ## Tag discipline
 
 Tags are the most important field. They power:
@@ -138,9 +148,8 @@ Tags are the most important field. They power:
 ## Things to avoid
 
 - **Don't** put commentary in the quote body. The body is the quote. If commentary becomes important, ADR a `note:` field first.
-- **Don't** use bullet lists in quote bodies — they break the layout presets.
+- **Don't** use bullet lists in quote bodies — cards and experiences expect prose.
 - **Don't** invent attributions when you don't know. Leave the field out.
-- **Don't** add quotes that need a mood that doesn't exist yet. Pick the closest mood from the seven, or request a new preset via ADR.
 
 ## What about photos as quote sources?
 
@@ -151,6 +160,6 @@ See [ADR 0006](adr/0006-dual-view-grid-and-immersive.md) for the source-vs-atmos
 ## References
 
 - [content-model.md](content-model.md) — full schema
-- [design-system.md](design-system.md) — mood preset specifications
+- [design-system.md](design-system.md) — Read-mode design principles
 - [ADR 0009](adr/0009-attribution-optional.md) — attribution optionality
 - [ADR 0010](adr/0010-obsidian-vault-symlink-for-quotes.md) — Obsidian symlink
