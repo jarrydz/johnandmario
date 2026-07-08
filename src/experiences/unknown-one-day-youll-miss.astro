@@ -11,9 +11,10 @@ import ExperienceFrame from '../layouts/ExperienceFrame.astro';
  * of every letter is a tiny two-frame alien, and the whole sentence marches
  * side to side the way the fleet always has.
  *
- * It plays itself as an attract mode (arrows + space take over), but the
- * words are indestructible — a hit only makes an alien blink and scores
- * points. You can shoot at this version of your life all day; it stays.
+ * It plays itself as an attract mode (arrows + space take over). Hits
+ * destroy aliens for real, letter by letter — but clear the whole quote and
+ * the next wave brings it back, same as game over or a refresh. You can
+ * shoot this version of your life away; another one starts.
  *
  * Legibility floor (ADR 0015): the quote ships as real DOM text — an
  * sr-only blockquote for screen readers and select-all, and a visible
@@ -291,7 +292,11 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
     const MARCH_BOUND = 32;
     const MARCH_MS = 520;
 
-    const blinked = new Map<string, number>(); // "li:col,row" -> until
+    // Destroyed aliens stay dead until the stage is cleared, the game ends,
+    // or the page reloads — then the whole quote reassembles.
+    const destroyed = new Set<string>(); // "li:col,row"
+    const totalCells = fleet.reduce((sum, line) => sum + line.cells.length, 0);
+    let stageClearAt = 0;
 
     let cannonX = W / 2;
     let cannonTargetX = W / 2;
@@ -399,14 +404,14 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
           ufo = null;
           bullet = null;
         } else if (y < FLEET_BOTTOM && y > FLEET_TOP) {
-          // Which line, which letter-pixel? Words blink but never die.
+          // Which line, which letter-pixel? A hit takes the alien out.
           for (const [li, line] of fleet.entries()) {
             if (y < line.y || y >= line.y + LINE_H) continue;
             const col = Math.floor((x - line.startX - offsetX) / CELL);
             const row = Math.floor((y - line.y) / CELL);
             const key = li + ':' + col + ',' + row;
-            if (line.lookup.has(col + ',' + row) && !blinked.has(key)) {
-              blinked.set(key, t + 700);
+            if (line.lookup.has(col + ',' + row) && !destroyed.has(key)) {
+              destroyed.add(key);
               burst(x, y, 'white');
               score += SPECIES[line.species].points;
               bullet = null;
@@ -419,21 +424,44 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
         }
       }
 
-      for (const [key, until] of blinked) if (t > until) blinked.delete(key);
       hiScore = Math.max(hiScore, score);
 
-      // Alien bolts drip from the underside of the words.
+      // Stage cleared: hold the empty sky for a beat, then the next wave
+      // reassembles the words, shields fresh, score intact.
+      if (!stageClearAt && destroyed.size === totalCells) {
+        stageClearAt = t + 2200;
+        bolts = [];
+      }
+      if (stageClearAt && t > stageClearAt) {
+        stageClearAt = 0;
+        destroyed.clear();
+        for (const shield of shields) {
+          shield.grid = makeShieldGrid();
+          drawShieldCache(shield);
+        }
+      }
+
+      // Alien bolts drip from the underside of whatever words remain.
       nextBolt -= dt;
       if (nextBolt <= 0 && bolts.length < 3) {
-        const line = fleet[Math.floor(Math.random() * fleet.length)];
-        const cell = line.cells[Math.floor(Math.random() * line.cells.length)];
-        let lowest = cell.row;
-        while (line.lookup.has(cell.col + ',' + (lowest + 1))) lowest++;
-        bolts.push({
-          x: line.startX + offsetX + cell.col * CELL + 3,
-          y: line.y + (lowest + 1) * CELL,
-          frame: 0,
-        });
+        const li = Math.floor(Math.random() * fleet.length);
+        const line = fleet[li];
+        const alive = line.cells.filter((c) => !destroyed.has(li + ':' + c.col + ',' + c.row));
+        if (alive.length > 0) {
+          const cell = alive[Math.floor(Math.random() * alive.length)];
+          let lowest = cell.row;
+          while (
+            line.lookup.has(cell.col + ',' + (lowest + 1)) &&
+            !destroyed.has(li + ':' + cell.col + ',' + (lowest + 1))
+          ) {
+            lowest++;
+          }
+          bolts.push({
+            x: line.startX + offsetX + cell.col * CELL + 3,
+            y: line.y + (lowest + 1) * CELL,
+            frame: 0,
+          });
+        }
         nextBolt = 1400 + Math.random() * 1600;
       }
       bolts = bolts.filter((bolt) => {
@@ -465,10 +493,16 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
       });
 
       if (gameOverUntil && t > gameOverUntil) {
-        // The words survive every game. Insert coin, live it again.
+        // Insert coin: a fresh game, the whole quote back on screen.
         gameOverUntil = 0;
         lives = 3;
         score = 0;
+        destroyed.clear();
+        bolts = [];
+        for (const shield of shields) {
+          shield.grid = makeShieldGrid();
+          drawShieldCache(shield);
+        }
       }
 
       // Mystery ship.
@@ -508,7 +542,7 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
       for (const [li, line] of fleet.entries()) {
         const img = alienSprites[line.species][marchFrame];
         for (const cell of line.cells) {
-          if (blinked.has(li + ':' + cell.col + ',' + cell.row)) continue;
+          if (destroyed.has(li + ':' + cell.col + ',' + cell.row)) continue;
           ctx.drawImage(img, line.startX + offsetX + cell.col * CELL, line.y + cell.row * CELL);
         }
       }
