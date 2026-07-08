@@ -1,0 +1,597 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import ExperienceFrame from '../layouts/ExperienceFrame.astro';
+
+/**
+ * "One day, you'll miss this version of your life" — Unknown
+ *
+ * A 1978 Space Invaders cabinet, faithful chrome and all — SCORE<1> /
+ * HI-SCORE header, red mystery ship, green shields, cannon, ground line,
+ * lives, CREDIT 00. The twist: the invader fleet IS the quote. Every pixel
+ * of every letter is a tiny two-frame alien, and the whole sentence marches
+ * side to side the way the fleet always has.
+ *
+ * It plays itself as an attract mode (arrows + space take over), but the
+ * words are indestructible — a hit only makes an alien blink and scores
+ * points. You can shoot at this version of your life all day; it stays.
+ *
+ * Legibility floor (ADR 0015): the quote ships as real DOM text — an
+ * sr-only blockquote for screen readers and select-all, and a visible
+ * <noscript> fallback. Reduced motion gets a single static frame.
+ */
+
+interface Props {
+  quote: CollectionEntry<'quotes'>;
+}
+
+const { quote } = Astro.props;
+const { attribution } = quote.data;
+const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
+---
+
+<ExperienceFrame quote={quote}>
+  <main class="arcade">
+    <blockquote class="sr-quote">
+      <p>{body}</p>
+      {attribution && <footer>— <cite>{attribution}</cite></footer>}
+    </blockquote>
+    <noscript>
+      <blockquote class="no-js-quote">
+        <p>{body}</p>
+        {attribution && <footer>— <cite>{attribution}</cite></footer>}
+      </blockquote>
+    </noscript>
+    <canvas id="invaders" width="960" height="704" aria-hidden="true"></canvas>
+  </main>
+</ExperienceFrame>
+
+<script>
+  const canvas = document.getElementById('invaders') as HTMLCanvasElement | null;
+  if (canvas) {
+    const ctx = canvas.getContext('2d')!;
+    const W = 960;
+    const H = 704;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    const WHITE = '#f4f4f4';
+    const GREEN = '#1ee31e';
+    const RED = '#e33021';
+
+    // ------------------------------------------------------------------ text
+    // 5×7 arcade font. Doubles as the HUD face and the blueprint the fleet
+    // assembles itself into — one alien per lit pixel.
+    // prettier-ignore
+    const FONT: Record<string, number[]> = {
+      A: [0x0e, 0x11, 0x11, 0x1f, 0x11, 0x11, 0x11],
+      C: [0x0e, 0x11, 0x10, 0x10, 0x10, 0x11, 0x0e],
+      D: [0x1e, 0x11, 0x11, 0x11, 0x11, 0x11, 0x1e],
+      E: [0x1f, 0x10, 0x10, 0x1e, 0x10, 0x10, 0x1f],
+      F: [0x1f, 0x10, 0x10, 0x1e, 0x10, 0x10, 0x10],
+      G: [0x0e, 0x11, 0x10, 0x17, 0x11, 0x11, 0x0f],
+      H: [0x11, 0x11, 0x11, 0x1f, 0x11, 0x11, 0x11],
+      I: [0x0e, 0x04, 0x04, 0x04, 0x04, 0x04, 0x0e],
+      L: [0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x1f],
+      M: [0x11, 0x1b, 0x15, 0x15, 0x11, 0x11, 0x11],
+      N: [0x11, 0x19, 0x15, 0x13, 0x11, 0x11, 0x11],
+      O: [0x0e, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0e],
+      R: [0x1e, 0x11, 0x11, 0x1e, 0x14, 0x12, 0x11],
+      S: [0x0f, 0x10, 0x10, 0x0e, 0x01, 0x01, 0x1e],
+      T: [0x1f, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04],
+      U: [0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0e],
+      V: [0x11, 0x11, 0x11, 0x11, 0x11, 0x0a, 0x04],
+      Y: [0x11, 0x11, 0x0a, 0x04, 0x04, 0x04, 0x04],
+      '0': [0x0e, 0x11, 0x13, 0x15, 0x19, 0x11, 0x0e],
+      '1': [0x04, 0x0c, 0x04, 0x04, 0x04, 0x04, 0x0e],
+      '2': [0x0e, 0x11, 0x01, 0x06, 0x08, 0x10, 0x1f],
+      '3': [0x1f, 0x02, 0x04, 0x02, 0x01, 0x11, 0x0e],
+      '4': [0x02, 0x06, 0x0a, 0x12, 0x1f, 0x02, 0x02],
+      '5': [0x1f, 0x10, 0x1e, 0x01, 0x01, 0x11, 0x0e],
+      '6': [0x06, 0x08, 0x10, 0x1e, 0x11, 0x11, 0x0e],
+      '7': [0x1f, 0x01, 0x02, 0x04, 0x08, 0x08, 0x08],
+      '8': [0x0e, 0x11, 0x11, 0x0e, 0x11, 0x11, 0x0e],
+      '9': [0x0e, 0x11, 0x11, 0x0f, 0x01, 0x02, 0x0c],
+      '<': [0x02, 0x04, 0x08, 0x10, 0x08, 0x04, 0x02],
+      '>': [0x08, 0x04, 0x02, 0x01, 0x02, 0x04, 0x08],
+      "'": [0x04, 0x04, 0x08, 0x00, 0x00, 0x00, 0x00],
+      ',': [0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x08],
+      '-': [0x00, 0x00, 0x00, 0x1f, 0x00, 0x00, 0x00],
+      ' ': [0, 0, 0, 0, 0, 0, 0],
+    };
+
+    const drawText = (text: string, x: number, y: number, scale: number, color: string) => {
+      ctx.fillStyle = color;
+      for (let i = 0; i < text.length; i++) {
+        const glyph = FONT[text[i]] ?? FONT[' '];
+        for (let r = 0; r < 7; r++) {
+          for (let c = 0; c < 5; c++) {
+            if ((glyph[r] >> (4 - c)) & 1) {
+              ctx.fillRect(x + (i * 6 + c) * scale, y + r * scale, scale, scale);
+            }
+          }
+        }
+      }
+    };
+    const textWidth = (text: string, scale: number) => (text.length * 6 - 1) * scale;
+
+    // --------------------------------------------------------------- sprites
+    const sprite = (rows: number[], width: number, color: string, scale = 1) => {
+      const c = document.createElement('canvas');
+      c.width = width * scale;
+      c.height = rows.length * scale;
+      const g = c.getContext('2d')!;
+      g.fillStyle = color;
+      rows.forEach((bits, r) => {
+        for (let col = 0; col < width; col++) {
+          if ((bits >> (width - 1 - col)) & 1) g.fillRect(col * scale, r * scale, scale, scale);
+        }
+      });
+      return c;
+    };
+
+    // Mini invaders, 6×5, two march frames each — squid / crab / octopus,
+    // one species per line like the original ranks (and the original
+    // 30 / 20 / 10 point values, top rank down).
+    // prettier-ignore
+    const SPECIES = [
+      { frames: [[0b001100, 0b011110, 0b110011, 0b001100, 0b010010],
+                 [0b001100, 0b011110, 0b110011, 0b010010, 0b100001]], points: 30 },
+      { frames: [[0b100001, 0b011110, 0b110011, 0b111111, 0b010010],
+                 [0b010010, 0b011110, 0b110011, 0b111111, 0b100001]], points: 20 },
+      { frames: [[0b011110, 0b111111, 0b110011, 0b111111, 0b100001],
+                 [0b011110, 0b111111, 0b110011, 0b111111, 0b010010]], points: 10 },
+    ];
+    const alienSprites = SPECIES.map((s) => s.frames.map((f) => sprite(f, 6, WHITE)));
+
+    // prettier-ignore
+    const CANNON = [0b0000001000000, 0b0000011100000, 0b0000011100000, 0b0111111111110,
+                    0b1111111111111, 0b1111111111111, 0b1111111111111, 0b1111111111111];
+    const cannonSprite = sprite(CANNON, 13, GREEN, 2);
+    const lifeSprite = sprite(CANNON, 13, GREEN, 1);
+
+    // prettier-ignore
+    const UFO = [0b0000011111100000, 0b0001111111111000, 0b0011111111111100,
+                 0b0110110110110110, 0b1111111111111111, 0b0011100110011100,
+                 0b0001000000001000];
+    const ufoSprite = sprite(UFO, 16, RED, 2);
+
+    // prettier-ignore
+    const BOLT_FRAMES = [
+      sprite([0b010, 0b100, 0b010, 0b001, 0b010, 0b100], 3, WHITE, 2),
+      sprite([0b010, 0b001, 0b010, 0b100, 0b010, 0b001], 3, WHITE, 2),
+    ];
+
+    // prettier-ignore
+    const BURST = [0b10001001, 0b01010010, 0b00111100, 0b11111111,
+                   0b00111100, 0b01010010, 0b10001001];
+    const burstSprites = {
+      white: sprite(BURST, 8, WHITE, 2),
+      green: sprite(BURST, 8, GREEN, 2),
+      red: sprite(BURST, 8, RED, 2),
+    };
+
+    // ----------------------------------------------------------------- fleet
+    // The invaders assemble into the quote, three ranks of words.
+    const LINES = ["ONE DAY, YOU'LL", 'MISS THIS VERSION', 'OF YOUR LIFE'];
+    const CELL = 8; // 6px alien + 2px air
+    const LINE_H = 7 * CELL;
+    const LINE_GAP = 20;
+    const FLEET_TOP = 150;
+
+    interface FleetLine {
+      startX: number;
+      y: number;
+      cells: { col: number; row: number }[];
+      lookup: Set<string>;
+      species: number;
+    }
+    const fleet: FleetLine[] = LINES.map((text, li) => {
+      const cols = text.length * 6 - 1;
+      const startX = Math.round((W - cols * CELL) / 2);
+      const y = FLEET_TOP + li * (LINE_H + LINE_GAP);
+      const cells: { col: number; row: number }[] = [];
+      const lookup = new Set<string>();
+      [...text].forEach((ch, i) => {
+        const glyph = FONT[ch] ?? FONT[' '];
+        for (let r = 0; r < 7; r++) {
+          for (let c = 0; c < 5; c++) {
+            if ((glyph[r] >> (4 - c)) & 1) {
+              const col = i * 6 + c;
+              cells.push({ col, row: r });
+              lookup.add(col + ',' + r);
+            }
+          }
+        }
+      });
+      return { startX, y, cells, lookup, species: li };
+    });
+    const FLEET_BOTTOM = FLEET_TOP + 3 * LINE_H + 2 * LINE_GAP;
+
+    // --------------------------------------------------------------- shields
+    const SHIELD_SCALE = 3;
+    const SHIELD_W = 22;
+    const SHIELD_H = 16;
+    const SHIELD_Y = 540;
+    const makeShieldGrid = () => {
+      const grid = new Uint8Array(SHIELD_W * SHIELD_H);
+      for (let r = 0; r < SHIELD_H; r++) {
+        for (let c = 0; c < SHIELD_W; c++) {
+          const taper = r < 4 && (c < 4 - r || c > SHIELD_W - 1 - (4 - r));
+          const notch = r >= 12 && c >= 8 - (r - 12) && c <= 13 + (r - 12);
+          grid[r * SHIELD_W + c] = taper || notch ? 0 : 1;
+        }
+      }
+      return grid;
+    };
+    interface Shield {
+      x: number;
+      grid: Uint8Array;
+      cache: HTMLCanvasElement;
+    }
+    const drawShieldCache = (shield: Shield) => {
+      const g = shield.cache.getContext('2d')!;
+      g.clearRect(0, 0, shield.cache.width, shield.cache.height);
+      g.fillStyle = GREEN;
+      for (let r = 0; r < SHIELD_H; r++) {
+        for (let c = 0; c < SHIELD_W; c++) {
+          if (shield.grid[r * SHIELD_W + c]) {
+            g.fillRect(c * SHIELD_SCALE, r * SHIELD_SCALE, SHIELD_SCALE, SHIELD_SCALE);
+          }
+        }
+      }
+    };
+    const shields: Shield[] = [0, 1, 2, 3].map((k) => {
+      const cache = document.createElement('canvas');
+      cache.width = SHIELD_W * SHIELD_SCALE;
+      cache.height = SHIELD_H * SHIELD_SCALE;
+      const shield = { x: Math.round(((k + 1) * W) / 5 - (SHIELD_W * SHIELD_SCALE) / 2), grid: makeShieldGrid(), cache };
+      drawShieldCache(shield);
+      return shield;
+    });
+    const erodeShield = (shield: Shield, gx: number, gy: number) => {
+      for (let dr = -2; dr <= 2; dr++) {
+        for (let dc = -2; dc <= 2; dc++) {
+          const r = gy + dr;
+          const c = gx + dc;
+          if (r >= 0 && r < SHIELD_H && c >= 0 && c < SHIELD_W && Math.random() < 0.75) {
+            shield.grid[r * SHIELD_W + c] = 0;
+          }
+        }
+      }
+      drawShieldCache(shield);
+    };
+    const shieldHit = (x: number, y: number): boolean => {
+      for (const shield of shields) {
+        const sw = SHIELD_W * SHIELD_SCALE;
+        const sh = SHIELD_H * SHIELD_SCALE;
+        if (x >= shield.x && x < shield.x + sw && y >= SHIELD_Y && y < SHIELD_Y + sh) {
+          const gx = Math.floor((x - shield.x) / SHIELD_SCALE);
+          const gy = Math.floor((y - SHIELD_Y) / SHIELD_SCALE);
+          if (shield.grid[gy * SHIELD_W + gx]) {
+            erodeShield(shield, gx, gy);
+            return true;
+          }
+        }
+      }
+      return false;
+    };
+
+    // ----------------------------------------------------------------- state
+    const GROUND_Y = 660;
+    const CANNON_Y = 622;
+    let score = 0;
+    let hiScore = 9990;
+    let lives = 3;
+    let gameOverUntil = 0;
+
+    let offsetX = 0;
+    let marchDir = 1;
+    let marchFrame = 0;
+    let marchTimer = 0;
+    const MARCH_STEP = 8;
+    const MARCH_BOUND = 32;
+    const MARCH_MS = 520;
+
+    const blinked = new Map<string, number>(); // "li:col,row" -> until
+
+    let cannonX = W / 2;
+    let cannonTargetX = W / 2;
+    let cannonRetargetAt = 0;
+    let cannonDeadUntil = 0;
+    let manualUntil = 0;
+    const keys = { left: false, right: false };
+
+    let bullet: { x: number; y: number } | null = null;
+    let nextAutoFire = 1500;
+
+    interface Bolt {
+      x: number;
+      y: number;
+      frame: number;
+    }
+    let bolts: Bolt[] = [];
+    let nextBolt = 1800;
+
+    let ufo: { x: number; dir: number } | null = null;
+    let nextUfo = 12000;
+    let ufoScoreAt: { x: number; until: number } | null = null;
+
+    interface Burst {
+      x: number;
+      y: number;
+      until: number;
+      color: keyof typeof burstSprites;
+    }
+    let bursts: Burst[] = [];
+
+    const now = () => performance.now();
+    const burst = (x: number, y: number, color: keyof typeof burstSprites) =>
+      bursts.push({ x, y, until: now() + 260, color });
+
+    const fire = () => {
+      if (!bullet && now() > cannonDeadUntil && !gameOverUntil) {
+        bullet = { x: cannonX, y: CANNON_Y - 6 };
+      }
+    };
+
+    // ----------------------------------------------------------------- input
+    if (!reducedMotion) {
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === ' ') {
+          e.preventDefault();
+          manualUntil = now() + 6000;
+          if (e.key === 'ArrowLeft') keys.left = true;
+          if (e.key === 'ArrowRight') keys.right = true;
+          if (e.key === ' ') fire();
+        }
+      });
+      window.addEventListener('keyup', (e) => {
+        if (e.key === 'ArrowLeft') keys.left = false;
+        if (e.key === 'ArrowRight') keys.right = false;
+      });
+      canvas.addEventListener('pointerdown', fire);
+    }
+
+    // ---------------------------------------------------------------- update
+    const update = (dt: number) => {
+      const t = now();
+
+      // Fleet march: whole formation shuffles in steps, frames alternating.
+      marchTimer += dt;
+      if (marchTimer >= MARCH_MS) {
+        marchTimer -= MARCH_MS;
+        offsetX += MARCH_STEP * marchDir;
+        if (Math.abs(offsetX) >= MARCH_BOUND) marchDir *= -1;
+        marchFrame ^= 1;
+      }
+
+      // Cannon: attract-mode patrol unless a human has the controls.
+      if (t > cannonDeadUntil && !gameOverUntil) {
+        if (t < manualUntil) {
+          const v = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+          cannonX += v * 220 * (dt / 1000);
+        } else {
+          if (t > cannonRetargetAt) {
+            cannonTargetX = 60 + Math.random() * (W - 120);
+            cannonRetargetAt = t + 2000 + Math.random() * 2500;
+          }
+          const d = cannonTargetX - cannonX;
+          cannonX += Math.sign(d) * Math.min(Math.abs(d), 130 * (dt / 1000));
+          nextAutoFire -= dt;
+          if (nextAutoFire <= 0) {
+            fire();
+            nextAutoFire = 1200 + Math.random() * 1800;
+          }
+        }
+        cannonX = Math.max(20, Math.min(W - 20, cannonX));
+      }
+
+      // Player bullet.
+      if (bullet) {
+        bullet.y -= 460 * (dt / 1000);
+        const { x, y } = bullet;
+        if (y < SHIELD_Y + SHIELD_H * SHIELD_SCALE && y > SHIELD_Y && shieldHit(x, y)) {
+          burst(x, y, 'green');
+          bullet = null;
+        } else if (ufo && y < 130 && Math.abs(x - ufo.x) < 16) {
+          burst(ufo.x, 100, 'red');
+          ufoScoreAt = { x: ufo.x, until: t + 1200 };
+          score += 150;
+          ufo = null;
+          bullet = null;
+        } else if (y < FLEET_BOTTOM && y > FLEET_TOP) {
+          // Which line, which letter-pixel? Words blink but never die.
+          for (const [li, line] of fleet.entries()) {
+            if (y < line.y || y >= line.y + LINE_H) continue;
+            const col = Math.floor((x - line.startX - offsetX) / CELL);
+            const row = Math.floor((y - line.y) / CELL);
+            const key = li + ':' + col + ',' + row;
+            if (line.lookup.has(col + ',' + row) && !blinked.has(key)) {
+              blinked.set(key, t + 700);
+              burst(x, y, 'white');
+              score += SPECIES[line.species].points;
+              bullet = null;
+            }
+            break;
+          }
+        } else if (y < 120) {
+          burst(x, 122, 'red');
+          bullet = null;
+        }
+      }
+
+      for (const [key, until] of blinked) if (t > until) blinked.delete(key);
+      hiScore = Math.max(hiScore, score);
+
+      // Alien bolts drip from the underside of the words.
+      nextBolt -= dt;
+      if (nextBolt <= 0 && bolts.length < 3) {
+        const line = fleet[Math.floor(Math.random() * fleet.length)];
+        const cell = line.cells[Math.floor(Math.random() * line.cells.length)];
+        let lowest = cell.row;
+        while (line.lookup.has(cell.col + ',' + (lowest + 1))) lowest++;
+        bolts.push({
+          x: line.startX + offsetX + cell.col * CELL + 3,
+          y: line.y + (lowest + 1) * CELL,
+          frame: 0,
+        });
+        nextBolt = 1400 + Math.random() * 1600;
+      }
+      bolts = bolts.filter((bolt) => {
+        bolt.y += 190 * (dt / 1000);
+        bolt.frame = Math.floor(t / 120) % 2;
+        if (bolt.y > SHIELD_Y && bolt.y < SHIELD_Y + SHIELD_H * SHIELD_SCALE && shieldHit(bolt.x, bolt.y)) {
+          burst(bolt.x, bolt.y, 'green');
+          return false;
+        }
+        if (
+          t > cannonDeadUntil &&
+          !gameOverUntil &&
+          bolt.y > CANNON_Y &&
+          Math.abs(bolt.x - cannonX) < 14
+        ) {
+          burst(cannonX, CANNON_Y + 6, 'green');
+          cannonDeadUntil = t + 1600;
+          lives--;
+          if (lives <= 0) {
+            gameOverUntil = t + 4000;
+          }
+          return false;
+        }
+        if (bolt.y >= GROUND_Y - 6) {
+          burst(bolt.x, GROUND_Y - 6, 'green');
+          return false;
+        }
+        return true;
+      });
+
+      if (gameOverUntil && t > gameOverUntil) {
+        // The words survive every game. Insert coin, live it again.
+        gameOverUntil = 0;
+        lives = 3;
+        score = 0;
+      }
+
+      // Mystery ship.
+      nextUfo -= dt;
+      if (!ufo && nextUfo <= 0) {
+        const dir = Math.random() < 0.5 ? 1 : -1;
+        ufo = { x: dir === 1 ? -20 : W + 20, dir };
+        nextUfo = 16000 + Math.random() * 14000;
+      }
+      if (ufo) {
+        ufo.x += ufo.dir * 95 * (dt / 1000);
+        if (ufo.x < -30 || ufo.x > W + 30) ufo = null;
+      }
+      if (ufoScoreAt && t > ufoScoreAt.until) ufoScoreAt = null;
+      bursts = bursts.filter((b) => t < b.until);
+    };
+
+    // ------------------------------------------------------------------ draw
+    const pad4 = (n: number) => String(Math.min(9999, n)).padStart(4, '0');
+    const draw = () => {
+      const t = now();
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, W, H);
+
+      // Header, exactly as the cabinet laid it out.
+      drawText('SCORE<1>', 48, 16, 2, WHITE);
+      drawText('HI-SCORE', (W - textWidth('HI-SCORE', 2)) / 2, 16, 2, WHITE);
+      drawText('SCORE<2>', W - 48 - textWidth('SCORE<2>', 2), 16, 2, WHITE);
+      drawText(pad4(score), 72, 46, 2, WHITE);
+      drawText(pad4(hiScore), (W - textWidth('0000', 2)) / 2, 46, 2, WHITE);
+      drawText('0000', W - 72 - textWidth('0000', 2), 46, 2, WHITE);
+
+      if (ufo) ctx.drawImage(ufoSprite, Math.round(ufo.x - 16), 94);
+      if (ufoScoreAt) drawText('150', ufoScoreAt.x - 15, 98, 2, RED);
+
+      // The fleet: the quote, one alien per lit pixel.
+      for (const [li, line] of fleet.entries()) {
+        const img = alienSprites[line.species][marchFrame];
+        for (const cell of line.cells) {
+          if (blinked.has(li + ':' + cell.col + ',' + cell.row)) continue;
+          ctx.drawImage(img, line.startX + offsetX + cell.col * CELL, line.y + cell.row * CELL);
+        }
+      }
+
+      for (const bolt of bolts) ctx.drawImage(BOLT_FRAMES[bolt.frame], Math.round(bolt.x - 3), Math.round(bolt.y));
+      if (bullet) {
+        ctx.fillStyle = bullet.y > SHIELD_Y - 40 ? GREEN : WHITE;
+        ctx.fillRect(Math.round(bullet.x - 1), Math.round(bullet.y), 2, 8);
+      }
+
+      for (const shield of shields) ctx.drawImage(shield.cache, shield.x, SHIELD_Y);
+      if (t > cannonDeadUntil && !gameOverUntil) {
+        ctx.drawImage(cannonSprite, Math.round(cannonX - 13), CANNON_Y);
+      }
+      for (const b of bursts) ctx.drawImage(burstSprites[b.color], Math.round(b.x - 8), Math.round(b.y - 7));
+
+      ctx.fillStyle = GREEN;
+      ctx.fillRect(0, GROUND_Y, W, 2);
+
+      drawText(String(Math.max(0, lives)), 48, GROUND_Y + 14, 2, WHITE);
+      for (let i = 0; i < Math.max(0, lives - 1); i++) {
+        ctx.drawImage(lifeSprite, 84 + i * 20, GROUND_Y + 16);
+      }
+      drawText('CREDIT 00', W - 48 - textWidth('CREDIT 00', 2), GROUND_Y + 14, 2, WHITE);
+
+      if (gameOverUntil && Math.floor(t / 400) % 2 === 0) {
+        drawText('GAME OVER', (W - textWidth('GAME OVER', 3)) / 2, 440, 3, RED);
+      }
+    };
+
+    // ------------------------------------------------------------------ loop
+    if (reducedMotion) {
+      draw(); // one still frame: the cabinet at rest, words legible
+    } else {
+      let last = now();
+      const frame = () => {
+        const t = now();
+        update(Math.min(t - last, 50)); // clamp hidden-tab gaps
+        last = t;
+        draw();
+        requestAnimationFrame(frame);
+      };
+      requestAnimationFrame(frame);
+    }
+  }
+</script>
+
+<style>
+  :global(body.experience) {
+    background: #000;
+  }
+  .arcade {
+    min-height: 100dvh;
+    display: grid;
+    place-items: center;
+    background: #000;
+    padding: 1.5rem 1rem 3rem;
+  }
+  canvas {
+    /* Fit the whole cabinet on screen: never wider than the viewport, never
+       taller than it either (the 1.3636 is the 960:704 aspect). */
+    width: min(100%, 1200px, calc((100dvh - 4.5rem) * 1.3636));
+    height: auto;
+    image-rendering: pixelated;
+  }
+  .sr-quote {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    margin: 0;
+  }
+  .no-js-quote {
+    margin: 0;
+    padding: 2rem;
+    max-width: 40rem;
+    color: #f4f4f4;
+    font-family: var(--font-mono);
+    line-height: 1.9;
+  }
+  .no-js-quote footer {
+    opacity: 0.65;
+  }
+</style>
