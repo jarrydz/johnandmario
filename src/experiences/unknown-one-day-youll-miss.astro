@@ -43,6 +43,7 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
       </blockquote>
     </noscript>
     <canvas id="invaders" width="960" height="704" aria-hidden="true"></canvas>
+    <p class="touch-hint" aria-hidden="true">DRAG TO MOVE&ensp;·&ensp;TAP TO FIRE</p>
   </main>
 </ExperienceFrame>
 
@@ -322,6 +323,7 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
     let cannonDeadUntil = 0;
     let manualUntil = 0;
     const keys = { left: false, right: false };
+    let touchX: number | null = null; // canvas-space x the finger is steering to
 
     let bullet: { x: number; y: number } | null = null;
     let nextAutoFire = 1500;
@@ -371,7 +373,40 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
         if (e.key === 'ArrowLeft') keys.left = false;
         if (e.key === 'ArrowRight') keys.right = false;
       });
-      canvas.addEventListener('pointerdown', fire);
+
+      // Touch (and mouse) controls: drag anywhere on the cabinet and the
+      // cannon chases your finger's x; a short still tap fires. Tracking
+      // per-pointer means two-thumb play works — steer with one, fire with
+      // the other.
+      const toCanvasX = (clientX: number) => {
+        const r = canvas.getBoundingClientRect();
+        return ((clientX - r.left) / r.width) * W;
+      };
+      const pointers = new Map<number, { x0: number; y0: number; t0: number; moved: boolean }>();
+      const anyDragging = () => [...pointers.values()].some((p) => p.moved);
+      canvas.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        canvas.setPointerCapture(e.pointerId);
+        pointers.set(e.pointerId, { x0: e.clientX, y0: e.clientY, t0: now(), moved: false });
+        manualUntil = now() + 6000;
+      });
+      canvas.addEventListener('pointermove', (e) => {
+        const p = pointers.get(e.pointerId);
+        if (!p) return;
+        if (Math.abs(e.clientX - p.x0) > 8 || Math.abs(e.clientY - p.y0) > 8) p.moved = true;
+        if (p.moved) {
+          touchX = toCanvasX(e.clientX);
+          manualUntil = now() + 6000;
+        }
+      });
+      const endPointer = (e: PointerEvent) => {
+        const p = pointers.get(e.pointerId);
+        pointers.delete(e.pointerId);
+        if (p && !p.moved && now() - p.t0 < 350) fire();
+        if (!anyDragging()) touchX = null;
+      };
+      canvas.addEventListener('pointerup', endPointer);
+      canvas.addEventListener('pointercancel', endPointer);
     }
 
     // ---------------------------------------------------------------- update
@@ -390,8 +425,15 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
       // Cannon: attract-mode patrol unless a human has the controls.
       if (t > cannonDeadUntil && !gameOverUntil) {
         if (t < manualUntil) {
-          const v = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
-          cannonX += v * 220 * (dt / 1000);
+          if (touchX !== null) {
+            // Chase the finger — fast enough to feel direct, capped so the
+            // cannon still visibly travels rather than teleporting.
+            const d = touchX - cannonX;
+            cannonX += Math.sign(d) * Math.min(Math.abs(d), 640 * (dt / 1000));
+          } else {
+            const v = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+            cannonX += v * 220 * (dt / 1000);
+          }
         } else {
           if (t > cannonRetargetAt) {
             cannonTargetX = 60 + Math.random() * (W - 120);
@@ -627,8 +669,9 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
     min-height: 100dvh;
     display: grid;
     place-items: center;
+    align-content: center;
     background: #000;
-    padding: 1.5rem 1rem 3rem;
+    padding: 1.5rem 0.75rem 3rem;
   }
   canvas {
     /* Fit the whole cabinet on screen: never wider than the viewport, never
@@ -636,6 +679,28 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
     width: min(100%, 1200px, calc((100dvh - 4.5rem) * 1.3636));
     height: auto;
     image-rendering: pixelated;
+    /* The canvas is the joystick: keep drags steering the cannon instead of
+       scrolling or pinch-zooming the page. */
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* Control hint for players without a keyboard. */
+  .touch-hint {
+    display: none;
+    margin: 0.9rem 0 0;
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.22em;
+    color: #f4f4f4;
+    opacity: 0.4;
+    text-align: center;
+  }
+  @media (pointer: coarse) {
+    .touch-hint {
+      display: block;
+    }
   }
   .sr-quote {
     position: absolute;
