@@ -44,7 +44,7 @@ const description = Astro.props.description ?? rawBody.slice(0, 200);
     <BaseHead title={title} description={description} />
   </head>
   <body class="experience">
-    <a class="experience-back" href={withBase('/read')}>← All quotes</a>
+    <a class="experience-back" href={withBase('/read')}>← Back</a>
     <slot>
       <blockquote class="experience-fallback">
         <p>{rawBody}</p>
@@ -65,7 +65,7 @@ const description = Astro.props.description ?? rawBody.slice(0, 200);
   }
   .experience-back {
     position: fixed;
-    top: calc(env(safe-area-inset-top, 0px) + 0.9rem);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 0.9rem);
     left: calc(env(safe-area-inset-left, 0px) + 1rem);
     z-index: 10;
     font-family: var(--font-display);
