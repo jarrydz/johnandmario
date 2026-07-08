@@ -52,24 +52,44 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
       lines.forEach(({ span }) => (span.textContent = ''));
       if (lines[0]) lines[0].span.after(cursor);
 
-      const delay = (ch) =>
-        ':.,—'.includes(ch) ? 340 : ch === ' ' ? 60 : 34 + Math.random() * 40;
+      // Human keystroke rhythm: uneven letter intervals, quick spaces, a real
+      // stop after punctuation, and the occasional mid-word hesitation.
+      const jitter = (min, max) => min + Math.random() * (max - min);
+      const delay = (ch) => {
+        let d;
+        if ('.:'.includes(ch)) d = jitter(450, 750);
+        else if (',;—'.includes(ch)) d = jitter(240, 420);
+        else if (ch === ' ') d = jitter(55, 120);
+        else d = jitter(50, 130);
+        if (Math.random() < 0.07) d += jitter(150, 400);
+        return d;
+      };
+
+      // Terminal cursor discipline: solid while keys are landing, blinking
+      // only once the "typist" has been idle for a beat.
+      let solidTimer;
+      const keystroke = () => {
+        cursor.classList.add('solid');
+        clearTimeout(solidTimer);
+        solidTimer = setTimeout(() => cursor.classList.remove('solid'), 220);
+      };
 
       let li = 0;
       let ci = 0;
       const start = () => setTimeout(tick, 600); // let the screen settle first
       const tick = () => {
         const line = lines[li];
-        if (!line) return; // done — cursor keeps blinking at rest
+        if (!line) return; // done — cursor settles into its idle blink
         if (ci === 0) line.span.after(cursor);
         if (ci < line.text.length) {
           const ch = line.text[ci++];
           line.span.textContent += ch;
+          keystroke();
           setTimeout(tick, delay(ch));
         } else {
           li++;
           ci = 0;
-          setTimeout(tick, 700); // beat before the attribution line
+          setTimeout(tick, 900); // idle beat before the attribution line
         }
       };
       // Background tabs throttle timers to a crawl — hold the first keystroke
@@ -138,6 +158,12 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
     vertical-align: text-bottom;
     background: currentColor;
     animation: blink 1.06s steps(1) infinite;
+  }
+  /* While keystrokes are landing the cursor holds solid — a terminal only
+     blinks when the typist is idle. Dropping the class restarts the blink
+     from its visible phase, so the cursor never vanishes mid-word. */
+  .cursor.solid {
+    animation: none;
   }
   @keyframes blink {
     50% {
