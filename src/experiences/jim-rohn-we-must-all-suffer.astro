@@ -24,7 +24,7 @@ const { attribution } = quote.data;
 const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
 ---
 
-<ExperienceFrame quote={quote}>
+<ExperienceFrame quote={quote} backdrop="#1a1a1a">
   <main class="crt">
     <blockquote class="terminal">
       <p class="line"><span class="typed">{body}</span></p>
@@ -43,15 +43,23 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
     // Parser-blocking on purpose: clears the text before first paint so there
     // is no flash of the full quote ahead of the typing run.
     (() => {
-      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
       const terminal = document.querySelector('.terminal');
       const cursor = terminal.querySelector('.cursor');
       const spans = [...terminal.querySelectorAll('.typed')];
       const lines = spans.map((span) => ({ span, text: span.textContent }));
-      lines.forEach(({ span }) => (span.textContent = ''));
-      if (lines[0]) lines[0].span.after(cursor);
 
+      // Terminal cursor discipline: solid while keys are landing, blinking
+      // only once the typist is idle for a beat.
+      let solidTimer;
+      const keystroke = () => {
+        cursor.classList.add('solid');
+        clearTimeout(solidTimer);
+        solidTimer = setTimeout(() => cursor.classList.remove('solid'), 220);
+      };
+
+      // ------------------------------------------------------ the auto-typist
       // Human keystroke rhythm: uneven letter intervals, quick spaces, a real
       // stop after punctuation, and the occasional mid-word hesitation.
       const jitter = (min, max) => min + Math.random() * (max - min);
@@ -65,19 +73,12 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
         return d;
       };
 
-      // Terminal cursor discipline: solid while keys are landing, blinking
-      // only once the "typist" has been idle for a beat.
-      let solidTimer;
-      const keystroke = () => {
-        cursor.classList.add('solid');
-        clearTimeout(solidTimer);
-        solidTimer = setTimeout(() => cursor.classList.remove('solid'), 220);
-      };
-
       let li = 0;
       let ci = 0;
+      let interrupted = false;
       const start = () => setTimeout(tick, 600); // let the screen settle first
       const tick = () => {
+        if (interrupted) return; // the visitor has the keyboard now
         const line = lines[li];
         if (!line) return; // done — cursor settles into its idle blink
         if (ci === 0) line.span.after(cursor);
@@ -92,18 +93,86 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
           setTimeout(tick, 900); // idle beat before the attribution line
         }
       };
-      // Background tabs throttle timers to a crawl — hold the first keystroke
-      // until the page is actually being looked at, so the typing always plays
-      // from the top.
-      if (document.hidden) {
-        document.addEventListener('visibilitychange', function onVisible() {
-          if (document.hidden) return;
-          document.removeEventListener('visibilitychange', onVisible);
-          start();
-        });
+
+      if (reducedMotion) {
+        // No animation: full text stands, cursor rests at the end.
+        interrupted = true;
+        const last = lines[lines.length - 1];
+        if (last) last.span.after(cursor);
       } else {
-        start();
+        lines.forEach(({ span }) => (span.textContent = ''));
+        if (lines[0]) lines[0].span.after(cursor);
+        // Background tabs throttle timers to a crawl — hold the first
+        // keystroke until the page is actually being looked at, so the typing
+        // always plays from the top.
+        if (document.hidden) {
+          document.addEventListener('visibilitychange', function onVisible() {
+            if (document.hidden) return;
+            document.removeEventListener('visibilitychange', onVisible);
+            start();
+          });
+        } else {
+          start();
+        }
       }
+
+      // ------------------------------------------------------- the visitor
+      // The terminal is live: type anywhere, any time, and the quote is yours
+      // to extend or erase. A keypress mid-animation takes the keyboard from
+      // the auto-typist wherever it got to.
+      const currentSpan = () => {
+        // The cursor always sits directly after the span it's typing into.
+        const prev = cursor.previousElementSibling;
+        return prev && prev.classList.contains('typed') ? prev : null;
+      };
+      const appendChar = (span, ch) => span.append(ch);
+      const deleteChar = (node) => {
+        // Trim one character off the end, descending through markup (the
+        // attribution holds a <cite>). Returns false once the node is empty.
+        while (node.lastChild) {
+          const last = node.lastChild;
+          if (last.nodeType === Node.TEXT_NODE) {
+            if (last.data.length > 0) {
+              last.data = last.data.slice(0, -1);
+              if (last.data.length === 0) node.removeChild(last);
+              return true;
+            }
+            node.removeChild(last);
+          } else if (last.nodeType === Node.ELEMENT_NODE) {
+            if (deleteChar(last)) return true;
+            node.removeChild(last);
+          } else {
+            node.removeChild(last);
+          }
+        }
+        return false;
+      };
+
+      window.addEventListener('keydown', (e) => {
+        if (e.metaKey || e.ctrlKey || e.altKey || e.isComposing) return;
+        const printable = e.key.length === 1;
+        if (!printable && e.key !== 'Backspace' && e.key !== 'Enter') return;
+        e.preventDefault();
+        interrupted = true;
+
+        const span = currentSpan();
+        if (!span) return;
+        if (printable) {
+          appendChar(span, e.key);
+        } else if (e.key === 'Enter') {
+          appendChar(span, '\n');
+        } else {
+          // Backspace: eat backwards, hopping up a line when this one is dry.
+          if (!deleteChar(span)) {
+            const idx = lines.findIndex((l) => l.span === span);
+            if (idx > 0) {
+              lines[idx - 1].span.after(cursor);
+              deleteChar(lines[idx - 1].span);
+            }
+          }
+        }
+        keystroke();
+      });
     })();
   </script>
 </ExperienceFrame>
@@ -111,14 +180,14 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
 <style>
   /* Paint the body too, so overscroll and resize never flash the site's light
      background around the terminal. */
-  :global(body.experience) {
-    background: #0b0b0c;
-  }
+  /* Same dark canvas as the rest of the site (--color-bg), hardcoded so the
+     terminal stays dark even if the site theme is toggled light. The body
+     backdrop matches via the frame's backdrop prop. */
   .crt {
     min-height: 100dvh;
     display: grid;
     place-items: center;
-    background: #0b0b0c;
+    background: #1a1a1a;
     padding: 2rem 1.25rem;
   }
   .terminal {
@@ -133,11 +202,13 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
   }
   .terminal ::selection {
     background: #d6d6d0;
-    color: #0b0b0c;
+    color: #1a1a1a;
   }
   .line {
     margin: 0;
     display: inline;
+    /* The terminal is editable — Enter types a real newline. */
+    white-space: pre-wrap;
   }
   .attribution {
     display: block;

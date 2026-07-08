@@ -30,7 +30,7 @@ const { attribution } = quote.data;
 const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
 ---
 
-<ExperienceFrame quote={quote}>
+<ExperienceFrame quote={quote} backdrop="#000">
   <main class="arcade">
     <blockquote class="sr-quote">
       <p>{body}</p>
@@ -623,9 +623,6 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
 </script>
 
 <style>
-  :global(body.experience) {
-    background: #000;
-  }
   .arcade {
     min-height: 100dvh;
     display: grid;

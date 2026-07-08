@@ -23,9 +23,13 @@ interface Props {
   quote: CollectionEntry<'quotes'>;
   title?: string;
   description?: string;
+  /** Page background. Inline on <body> so overscroll matches the experience —
+   *  experiences must NOT set body background via :global (every experience's
+   *  CSS ships on every /read/[slug] page, so global rules collide). */
+  backdrop?: string;
 }
 
-const { quote } = Astro.props;
+const { quote, backdrop } = Astro.props;
 const { attribution } = quote.data;
 
 // Derive title/description from the quote body, same as QuoteLayout — quotes
@@ -43,7 +47,7 @@ const description = Astro.props.description ?? rawBody.slice(0, 200);
   <head>
     <BaseHead title={title} description={description} />
   </head>
-  <body class="experience">
+  <body class="experience" style={backdrop ? `background: ${backdrop}` : undefined}>
     <a class="experience-back" href={withBase('/read')}>Back</a>
     <slot>
       <blockquote class="experience-fallback">
