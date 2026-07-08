@@ -248,32 +248,50 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
       drawShieldCache(shield);
       return shield;
     });
-    const erodeShield = (shield: Shield, gx: number, gy: number) => {
-      for (let dr = -2; dr <= 2; dr++) {
-        for (let dc = -2; dc <= 2; dc++) {
-          const r = gy + dr;
-          const c = gx + dc;
-          if (r >= 0 && r < SHIELD_H && c >= 0 && c < SHIELD_W && Math.random() < 0.75) {
-            shield.grid[r * SHIELD_W + c] = 0;
-          }
+    // Deterministic blast masks, like the original's: a player bullet bites a
+    // chunk upward from the bottom surface it strikes, an alien bolt bites
+    // downward from the top. Same hit, same break, every time.
+    // prettier-ignore
+    const BULLET_BLAST: [number, number][] = [
+      [-1, -2], [0, -2], [1, -2],
+      [-2, -1], [-1, -1], [0, -1], [1, -1], [2, -1],
+      [-2, 0], [-1, 0], [0, 0], [1, 0], [2, 0],
+      [-1, 1], [0, 1], [1, 1],
+    ];
+    // prettier-ignore
+    const BOLT_BLAST: [number, number][] = [
+      [-1, -1], [0, -1], [1, -1],
+      [-2, 0], [-1, 0], [0, 0], [1, 0], [2, 0],
+      [-2, 1], [-1, 1], [0, 1], [1, 1], [2, 1],
+      [-2, 2], [0, 2], [2, 2],
+    ];
+    const erodeShield = (shield: Shield, gx: number, gy: number, mask: [number, number][]) => {
+      for (const [dc, dr] of mask) {
+        const r = gy + dr;
+        const c = gx + dc;
+        if (r >= 0 && r < SHIELD_H && c >= 0 && c < SHIELD_W) {
+          shield.grid[r * SHIELD_W + c] = 0;
         }
       }
       drawShieldCache(shield);
     };
-    const shieldHit = (x: number, y: number): boolean => {
+    // Walk the projectile's travel this frame cell-by-cell so the impact lands
+    // on the first solid pixel in its path — damage starts exactly at the
+    // surface it visibly hits, never a few pixels deep.
+    const shieldImpact = (x: number, yFrom: number, yTo: number) => {
       for (const shield of shields) {
-        const sw = SHIELD_W * SHIELD_SCALE;
-        const sh = SHIELD_H * SHIELD_SCALE;
-        if (x >= shield.x && x < shield.x + sw && y >= SHIELD_Y && y < SHIELD_Y + sh) {
-          const gx = Math.floor((x - shield.x) / SHIELD_SCALE);
+        if (x < shield.x || x >= shield.x + SHIELD_W * SHIELD_SCALE) continue;
+        const gx = Math.floor((x - shield.x) / SHIELD_SCALE);
+        const step = yTo >= yFrom ? SHIELD_SCALE : -SHIELD_SCALE;
+        for (let y = yFrom; step > 0 ? y <= yTo : y >= yTo; y += step) {
+          if (y < SHIELD_Y || y >= SHIELD_Y + SHIELD_H * SHIELD_SCALE) continue;
           const gy = Math.floor((y - SHIELD_Y) / SHIELD_SCALE);
           if (shield.grid[gy * SHIELD_W + gx]) {
-            erodeShield(shield, gx, gy);
-            return true;
+            return { shield, gx, gy, y: SHIELD_Y + gy * SHIELD_SCALE };
           }
         }
       }
-      return false;
+      return null;
     };
 
     // ----------------------------------------------------------------- state
@@ -392,10 +410,16 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
 
       // Player bullet.
       if (bullet) {
+        const yBefore = bullet.y;
         bullet.y -= 460 * (dt / 1000);
         const { x, y } = bullet;
-        if (y < SHIELD_Y + SHIELD_H * SHIELD_SCALE && y > SHIELD_Y && shieldHit(x, y)) {
-          burst(x, y, 'green');
+        const impact =
+          y < SHIELD_Y + SHIELD_H * SHIELD_SCALE && yBefore > SHIELD_Y
+            ? shieldImpact(x, yBefore, y)
+            : null;
+        if (impact) {
+          erodeShield(impact.shield, impact.gx, impact.gy, BULLET_BLAST);
+          burst(x, impact.y, 'green');
           bullet = null;
         } else if (ufo && y < 130 && Math.abs(x - ufo.x) < 16) {
           burst(ufo.x, 100, 'red');
@@ -465,11 +489,19 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
         nextBolt = 1400 + Math.random() * 1600;
       }
       bolts = bolts.filter((bolt) => {
+        const yBefore = bolt.y;
         bolt.y += 190 * (dt / 1000);
         bolt.frame = Math.floor(t / 120) % 2;
-        if (bolt.y > SHIELD_Y && bolt.y < SHIELD_Y + SHIELD_H * SHIELD_SCALE && shieldHit(bolt.x, bolt.y)) {
-          burst(bolt.x, bolt.y, 'green');
-          return false;
+        // The bolt's tip does the chipping — same swept test as the bullet,
+        // so alien fire chews the bunkers from the top exactly where it lands.
+        const boltTip = bolt.y + 12;
+        if (boltTip > SHIELD_Y && yBefore + 12 < SHIELD_Y + SHIELD_H * SHIELD_SCALE) {
+          const impact = shieldImpact(bolt.x, yBefore + 12, boltTip);
+          if (impact) {
+            erodeShield(impact.shield, impact.gx, impact.gy, BOLT_BLAST);
+            burst(bolt.x, impact.y, 'green');
+            return false;
+          }
         }
         if (
           t > cannonDeadUntil &&
