@@ -1,0 +1,1125 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import ExperienceFrame from '../layouts/ExperienceFrame.astro';
+
+/**
+ * "You hold the power to create all that you desire out of nothing." — Unknown
+ *
+ * Windows 95 MS Paint, faithfully rebuilt: navy title bar, File→Help menus,
+ * the 2×8 toolbox, the 28-colour palette, the status bar. The canvas loads
+ * with the quote already painted — sun, hills, rainbow, the words across the
+ * sky — and then it's yours: erase it, paint over it, make something else
+ * out of nothing. File → Save As downloads whatever you create.
+ *
+ * Tools that genuinely work: pencil, brush, airbrush, eraser, fill, colour
+ * picker, line, rectangle, ellipse, rounded rectangle, undo/redo. The rest
+ * of the toolbox is present but greyed, like Paint greyed what it couldn't
+ * do — no dishonest buttons.
+ *
+ * Legibility floor (ADR 0015): the quote ships as real DOM text (sr-only +
+ * <noscript>); the painting is a bonus rendition.
+ */
+
+interface Props {
+  quote: CollectionEntry<'quotes'>;
+}
+
+const { quote } = Astro.props;
+const { attribution } = quote.data;
+const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
+---
+
+<ExperienceFrame quote={quote} backdrop="#008080">
+  <main class="desktop">
+    <blockquote class="sr-quote">
+      <p>{body}</p>
+      {attribution && <footer>— <cite>{attribution}</cite></footer>}
+    </blockquote>
+    <noscript>
+      <blockquote class="no-js-quote">
+        <p>{body}</p>
+        {attribution && <footer>— <cite>{attribution}</cite></footer>}
+      </blockquote>
+    </noscript>
+
+    <div class="paint-window" aria-hidden="true">
+      <div class="titlebar">
+        <canvas class="app-icon" width="16" height="16"></canvas>
+        <span class="title-text">untitled - Paint</span>
+        <span class="title-buttons">
+          <button class="tb-btn" type="button">–</button>
+          <button class="tb-btn" type="button">□</button>
+          <button class="tb-btn" type="button">×</button>
+        </span>
+      </div>
+
+      <div class="menubar">
+        <button class="menu-item" data-menu="file" type="button"><u>F</u>ile</button>
+        <button class="menu-item" data-menu="edit" type="button"><u>E</u>dit</button>
+        <button class="menu-item" data-menu="view" type="button"><u>V</u>iew</button>
+        <button class="menu-item" data-menu="image" type="button"><u>I</u>mage</button>
+        <button class="menu-item" data-menu="options" type="button"><u>O</u>ptions</button>
+        <button class="menu-item" data-menu="help" type="button"><u>H</u>elp</button>
+      </div>
+
+      <div class="paint-body">
+        <div class="toolbox">
+          <div class="tools"></div>
+          <div class="tool-options"></div>
+        </div>
+        <div class="canvas-area">
+          <canvas id="easel" width="640" height="440"></canvas>
+        </div>
+      </div>
+
+      <div class="palette-row">
+        <div class="swatch-indicator">
+          <div class="swatch-bg"></div>
+          <div class="swatch-fg"></div>
+        </div>
+        <div class="palette"></div>
+      </div>
+
+      <div class="statusbar">
+        <div class="status-pane status-help">For Help, click Help Topics on the Help Menu.</div>
+        <div class="status-pane status-pos"></div>
+      </div>
+    </div>
+  </main>
+</ExperienceFrame>
+
+<script>
+  const easel = document.getElementById('easel') as HTMLCanvasElement | null;
+  if (easel) {
+    const ctx = easel.getContext('2d', { willReadFrequently: true })!;
+    const CW = easel.width;
+    const CH = easel.height;
+
+    // ------------------------------------------------------------- palette
+    // The Windows 95 Paint box: 14 dark, 14 bright.
+    const PALETTE = [
+      '#000000', '#808080', '#800000', '#808000', '#008000', '#008080', '#000080',
+      '#800080', '#808040', '#004040', '#0080FF', '#004080', '#8000FF', '#804000',
+      '#FFFFFF', '#C0C0C0', '#FF0000', '#FFFF00', '#00FF00', '#00FFFF', '#0000FF',
+      '#FF00FF', '#FFFF80', '#00FF80', '#80FFFF', '#8080FF', '#FF0080', '#FF8040',
+    ];
+    let fg = '#000000';
+    let bg = '#FFFFFF';
+
+    // ------------------------------------------------------------ the art
+    // The quote, as somebody's 1996 masterpiece: sun, rainbow, hills, and
+    // the words across the sky. All pixels — every bit of it erasable.
+    const wrapText = (text: string, maxWidth: number) => {
+      const words = text.split(' ');
+      const lines: string[] = [];
+      let line = '';
+      for (const word of words) {
+        const probe = line ? line + ' ' + word : word;
+        if (ctx.measureText(probe).width > maxWidth && line) {
+          lines.push(line);
+          line = word;
+        } else {
+          line = probe;
+        }
+      }
+      if (line) lines.push(line);
+      return lines;
+    };
+    const paintArtwork = () => {
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, CW, CH);
+
+      // Rolling hills.
+      ctx.fillStyle = '#00FF80';
+      ctx.beginPath();
+      ctx.ellipse(140, CH + 40, 320, 110, 0, Math.PI, 0);
+      ctx.fill();
+      ctx.fillStyle = '#008000';
+      ctx.beginPath();
+      ctx.ellipse(520, CH + 50, 340, 100, 0, Math.PI, 0);
+      ctx.fill();
+
+      // Sun, top-left, with rays.
+      ctx.fillStyle = '#FFFF00';
+      ctx.beginPath();
+      ctx.arc(78, 74, 34, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#FFFF00';
+      ctx.lineWidth = 3;
+      for (let i = 0; i < 8; i++) {
+        const a = (i * Math.PI) / 4 + 0.4;
+        ctx.beginPath();
+        ctx.moveTo(78 + Math.cos(a) * 42, 74 + Math.sin(a) * 42);
+        ctx.lineTo(78 + Math.cos(a) * 58, 74 + Math.sin(a) * 58);
+        ctx.stroke();
+      }
+
+      // Rainbow, top-right — painted before the words, which go on top,
+      // exactly the order a kid in 1996 would have done it.
+      const arcs = ['#FF0000', '#FF8040', '#FFFF00', '#00FF00', '#0000FF', '#FF00FF'];
+      ctx.lineWidth = 7;
+      arcs.forEach((c, i) => {
+        ctx.strokeStyle = c;
+        ctx.beginPath();
+        ctx.arc(575, 185, 120 - i * 8, Math.PI, Math.PI * 1.55);
+        ctx.stroke();
+      });
+
+      // A tree on the green hill.
+      ctx.fillStyle = '#804000';
+      ctx.fillRect(492, 336, 12, 46);
+      ctx.fillStyle = '#008000';
+      ctx.beginPath();
+      ctx.arc(498, 318, 30, 0, Math.PI * 2);
+      ctx.arc(478, 334, 22, 0, Math.PI * 2);
+      ctx.arc(518, 334, 22, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Tulips.
+      const tulip = (x: number, y: number, c: string) => {
+        ctx.strokeStyle = '#008000';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x, y + 18);
+        ctx.stroke();
+        ctx.fillStyle = c;
+        ctx.beginPath();
+        ctx.arc(x, y - 4, 6, 0, Math.PI * 2);
+        ctx.fill();
+      };
+      tulip(96, 380, '#FF0000');
+      tulip(150, 396, '#FF00FF');
+      tulip(212, 384, '#FF8040');
+      tulip(64, 404, '#FF0080');
+
+      // The words, across the sky.
+      const text = document.querySelector('.sr-quote p')?.textContent ?? '';
+      ctx.fillStyle = '#000080';
+      ctx.font = 'bold 30px "Comic Sans MS", "Comic Sans", cursive';
+      ctx.textAlign = 'center';
+      const lines = wrapText(text, 400);
+      lines.forEach((line, i) => ctx.fillText(line, CW / 2 + 10, 120 + i * 40));
+      ctx.font = 'italic 18px "Comic Sans MS", "Comic Sans", cursive';
+      const credit = document.querySelector('.sr-quote cite')?.textContent ?? '';
+      if (credit) ctx.fillText('- ' + credit.toLowerCase(), CW / 2 + 10, 120 + lines.length * 40 + 6);
+      ctx.textAlign = 'start';
+    };
+
+    // -------------------------------------------------------------- undo
+    const undoStack: ImageData[] = [];
+    const redoStack: ImageData[] = [];
+    const snapshot = () => {
+      undoStack.push(ctx.getImageData(0, 0, CW, CH));
+      if (undoStack.length > 30) undoStack.shift();
+      redoStack.length = 0;
+    };
+    const undo = () => {
+      const prev = undoStack.pop();
+      if (!prev) return;
+      redoStack.push(ctx.getImageData(0, 0, CW, CH));
+      ctx.putImageData(prev, 0, 0);
+    };
+    const redo = () => {
+      const next = redoStack.pop();
+      if (!next) return;
+      undoStack.push(ctx.getImageData(0, 0, CW, CH));
+      ctx.putImageData(next, 0, 0);
+    };
+
+    // -------------------------------------------------------------- tools
+    // Icons are drawn, not fonts — each a 16×16 pixel picture like the real
+    // toolbox. Greyed tools exist but honestly do nothing (Paint greyed what
+    // it couldn't do).
+    type IconPainter = (g: CanvasRenderingContext2D) => void;
+    const px = (g: CanvasRenderingContext2D, x: number, y: number, c: string, w = 1, h = 1) => {
+      g.fillStyle = c;
+      g.fillRect(x, y, w, h);
+    };
+    const outlineIcon = (draw: (g: CanvasRenderingContext2D) => void): IconPainter => (g) => {
+      g.strokeStyle = '#000';
+      g.lineWidth = 1;
+      draw(g);
+    };
+    const ICONS: Record<string, IconPainter> = {
+      freeselect: outlineIcon((g) => {
+        g.setLineDash([2, 1]);
+        g.beginPath();
+        g.moveTo(8, 2); g.lineTo(11, 6); g.lineTo(14, 8); g.lineTo(10, 10);
+        g.lineTo(9, 14); g.lineTo(6, 10); g.lineTo(2, 9); g.lineTo(6, 6);
+        g.closePath();
+        g.stroke();
+      }),
+      select: outlineIcon((g) => {
+        g.setLineDash([2, 1]);
+        g.strokeRect(2.5, 3.5, 11, 9);
+      }),
+      eraser: (g) => {
+        px(g, 3, 8, '#000', 10, 1); px(g, 3, 8, '#000', 1, 5); px(g, 12, 8, '#000', 1, 5);
+        px(g, 3, 12, '#000', 10, 1); px(g, 4, 9, '#FFFF80', 8, 3);
+        px(g, 5, 5, '#000', 10, 1); px(g, 14, 5, '#000', 1, 4);
+        px(g, 5, 5, '#FFFF80', 1, 3); px(g, 6, 6, '#FFFF80', 8, 2);
+        px(g, 13, 6, '#FFFF80', 1, 3);
+      },
+      fill: (g) => {
+        px(g, 4, 7, '#008080', 9, 5); px(g, 3, 8, '#008080', 1, 3); px(g, 13, 8, '#008080', 1, 3);
+        px(g, 4, 6, '#000', 9, 1); px(g, 4, 12, '#000', 9, 1);
+        px(g, 6, 2, '#000', 1, 4); px(g, 10, 2, '#000', 1, 4); px(g, 7, 2, '#000', 3, 1);
+        px(g, 2, 12, '#008080', 2, 2);
+      },
+      picker: (g) => {
+        px(g, 10, 2, '#000', 4, 4);
+        px(g, 8, 5, '#000', 3, 3); px(g, 6, 7, '#000', 3, 3); px(g, 4, 9, '#008080', 3, 3);
+        px(g, 2, 11, '#008080', 3, 3);
+      },
+      magnifier: outlineIcon((g) => {
+        g.beginPath();
+        g.arc(7, 6, 4.5, 0, Math.PI * 2);
+        g.stroke();
+        g.lineWidth = 2;
+        g.beginPath();
+        g.moveTo(10, 9); g.lineTo(14, 13);
+        g.stroke();
+      }),
+      pencil: (g) => {
+        px(g, 10, 2, '#FF8040', 3, 3);
+        px(g, 8, 5, '#FFFF00', 4, 3); px(g, 6, 7, '#FFFF00', 4, 3);
+        px(g, 4, 9, '#FFFF00', 4, 3);
+        px(g, 3, 11, '#000', 3, 3);
+      },
+      brush: (g) => {
+        px(g, 7, 2, '#C08040', 3, 5);
+        px(g, 6, 7, '#C0C0C0', 5, 2);
+        px(g, 5, 9, '#000', 7, 4);
+      },
+      airbrush: (g) => {
+        px(g, 8, 6, '#0000FF', 6, 7); px(g, 9, 4, '#0000FF', 4, 2);
+        px(g, 2, 3, '#000', 1, 1); px(g, 5, 4, '#000', 1, 1); px(g, 3, 6, '#000', 1, 1);
+        px(g, 6, 7, '#000', 1, 1); px(g, 2, 9, '#000', 1, 1); px(g, 5, 10, '#000', 1, 1);
+        px(g, 3, 12, '#000', 1, 1);
+      },
+      text: (g) => {
+        g.fillStyle = '#000';
+        g.font = 'bold 13px Georgia, serif';
+        g.fillText('A', 4, 13);
+      },
+      line: outlineIcon((g) => {
+        g.lineWidth = 2;
+        g.beginPath();
+        g.moveTo(3, 13); g.lineTo(13, 3);
+        g.stroke();
+      }),
+      curve: outlineIcon((g) => {
+        g.lineWidth = 2;
+        g.beginPath();
+        g.moveTo(12, 3);
+        g.bezierCurveTo(4, 3, 13, 12, 4, 13);
+        g.stroke();
+      }),
+      rect: outlineIcon((g) => g.strokeRect(3.5, 4.5, 10, 8)),
+      polygon: outlineIcon((g) => {
+        g.beginPath();
+        g.moveTo(3, 12); g.lineTo(6, 4); g.lineTo(10, 8); g.lineTo(13, 3);
+        g.lineTo(13, 12);
+        g.closePath();
+        g.stroke();
+      }),
+      ellipse: outlineIcon((g) => {
+        g.beginPath();
+        g.ellipse(8, 8, 5.5, 4, 0, 0, Math.PI * 2);
+        g.stroke();
+      }),
+      rounded: outlineIcon((g) => {
+        g.beginPath();
+        g.roundRect(3.5, 4.5, 10, 8, 3);
+        g.stroke();
+      }),
+    };
+
+    interface Tool {
+      id: string;
+      live: boolean;
+      sizes?: boolean;
+    }
+    const TOOLS: Tool[] = [
+      { id: 'freeselect', live: false },
+      { id: 'select', live: false },
+      { id: 'eraser', live: true, sizes: true },
+      { id: 'fill', live: true },
+      { id: 'picker', live: true },
+      { id: 'magnifier', live: false },
+      { id: 'pencil', live: true },
+      { id: 'brush', live: true, sizes: true },
+      { id: 'airbrush', live: true, sizes: true },
+      { id: 'text', live: false },
+      { id: 'line', live: true, sizes: true },
+      { id: 'curve', live: false },
+      { id: 'rect', live: true },
+      { id: 'polygon', live: false },
+      { id: 'ellipse', live: true },
+      { id: 'rounded', live: true },
+    ];
+    let tool = 'pencil';
+    let toolBefore = 'pencil'; // picker snaps back, like the real thing
+    let size = 3;
+
+    const toolsBox = document.querySelector('.tools')!;
+    const optionsBox = document.querySelector('.tool-options')!;
+    const statusHelp = document.querySelector('.status-help')!;
+
+    const renderOptions = () => {
+      optionsBox.innerHTML = '';
+      const def = TOOLS.find((t) => t.id === tool);
+      if (!def?.sizes) return;
+      [1, 3, 5, 8].forEach((s) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'size-option' + (s === size ? ' picked' : '');
+        const bar = document.createElement('span');
+        bar.style.height = s + 'px';
+        b.appendChild(bar);
+        b.addEventListener('click', () => {
+          size = s;
+          renderOptions();
+        });
+        optionsBox.appendChild(b);
+      });
+    };
+
+    const HELP: Record<string, string> = {
+      pencil: 'Draws a free-form line one pixel wide.',
+      brush: 'Draws using a brush with the selected shape and size.',
+      airbrush: 'Draws using an airbrush of the selected size.',
+      eraser: 'Erases a portion of the picture, using the selected eraser shape.',
+      fill: 'Fills an area with the current drawing color.',
+      picker: 'Picks up a color from the picture for drawing.',
+      line: 'Draws a straight line with the selected line width.',
+      rect: 'Draws a rectangle with the selected fill style.',
+      ellipse: 'Draws an ellipse with the selected fill style.',
+      rounded: 'Draws a rounded rectangle with the selected fill style.',
+    };
+
+    TOOLS.forEach((t) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'tool' + (t.live ? '' : ' dead');
+      b.dataset.tool = t.id;
+      const icon = document.createElement('canvas');
+      icon.width = 16;
+      icon.height = 16;
+      ICONS[t.id]?.(icon.getContext('2d')!);
+      b.appendChild(icon);
+      if (t.live) {
+        b.addEventListener('click', () => {
+          toolBefore = tool === 'picker' ? toolBefore : tool;
+          tool = t.id;
+          toolsBox.querySelectorAll('.tool').forEach((el) => el.classList.remove('active'));
+          b.classList.add('active');
+          statusHelp.textContent = HELP[t.id] ?? '';
+          renderOptions();
+        });
+      }
+      toolsBox.appendChild(b);
+    });
+    toolsBox.querySelector('[data-tool="pencil"]')?.classList.add('active');
+
+    // ------------------------------------------------------------- swatches
+    const paletteBox = document.querySelector('.palette')!;
+    const fgEl = document.querySelector('.swatch-fg') as HTMLElement;
+    const bgEl = document.querySelector('.swatch-bg') as HTMLElement;
+    const paintSwatches = () => {
+      fgEl.style.background = fg;
+      bgEl.style.background = bg;
+    };
+    PALETTE.forEach((c) => {
+      const s = document.createElement('button');
+      s.type = 'button';
+      s.className = 'swatch';
+      s.style.background = c;
+      s.addEventListener('click', () => {
+        fg = c;
+        paintSwatches();
+      });
+      s.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        bg = c;
+        paintSwatches();
+      });
+      paletteBox.appendChild(s);
+    });
+    paintSwatches();
+
+    // ------------------------------------------------------------- drawing
+    const pos = (e: PointerEvent) => {
+      const r = easel.getBoundingClientRect();
+      return {
+        x: Math.round(((e.clientX - r.left) / r.width) * CW),
+        y: Math.round(((e.clientY - r.top) / r.height) * CH),
+      };
+    };
+
+    let drawing = false;
+    let usingBg = false; // right-button strokes paint with the background colour
+    let last = { x: 0, y: 0 };
+    let anchor = { x: 0, y: 0 };
+    let shapeBase: ImageData | null = null;
+    let sprayTimer = 0;
+
+    const ink = () => (usingBg ? bg : fg);
+
+    const strokeSeg = (a: { x: number; y: number }, b: { x: number; y: number }, w: number, c: string) => {
+      ctx.strokeStyle = c;
+      ctx.lineWidth = w;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    };
+
+    const spray = () => {
+      ctx.fillStyle = ink();
+      const radius = size * 3 + 4;
+      for (let i = 0; i < 10; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const d = Math.random() * radius;
+        ctx.fillRect(Math.round(last.x + Math.cos(a) * d), Math.round(last.y + Math.sin(a) * d), 1, 1);
+      }
+    };
+
+    const floodFill = (x: number, y: number, hex: string) => {
+      const img = ctx.getImageData(0, 0, CW, CH);
+      const data = new Uint32Array(img.data.buffer);
+      const rgb = parseInt(hex.slice(1), 16);
+      const fill = (0xff << 24) | (((rgb & 0xff) << 16) >>> 0) | (rgb & 0xff00) | (rgb >>> 16);
+      const target = data[y * CW + x];
+      if (target === fill) return;
+      const stack = [y * CW + x];
+      while (stack.length) {
+        const i = stack.pop()!;
+        if (data[i] !== target) continue;
+        data[i] = fill;
+        const ix = i % CW;
+        if (ix > 0) stack.push(i - 1);
+        if (ix < CW - 1) stack.push(i + 1);
+        if (i >= CW) stack.push(i - CW);
+        if (i < CW * (CH - 1)) stack.push(i + CW);
+      }
+      ctx.putImageData(img, 0, 0);
+    };
+
+    const drawShape = (a: { x: number; y: number }, b: { x: number; y: number }) => {
+      ctx.strokeStyle = ink();
+      ctx.lineWidth = tool === 'line' ? size : 1;
+      ctx.lineCap = 'butt';
+      const x = Math.min(a.x, b.x);
+      const y = Math.min(a.y, b.y);
+      const w = Math.abs(b.x - a.x);
+      const h = Math.abs(b.y - a.y);
+      ctx.beginPath();
+      if (tool === 'line') {
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+      } else if (tool === 'rect') {
+        ctx.rect(x + 0.5, y + 0.5, w, h);
+      } else if (tool === 'rounded') {
+        ctx.roundRect(x + 0.5, y + 0.5, w, h, Math.min(12, w / 2, h / 2));
+      } else if (tool === 'ellipse') {
+        ctx.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
+      }
+      ctx.stroke();
+    };
+
+    const SHAPES = ['line', 'rect', 'ellipse', 'rounded'];
+
+    easel.addEventListener('contextmenu', (e) => e.preventDefault());
+    easel.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      easel.setPointerCapture(e.pointerId);
+      const p = pos(e);
+      usingBg = e.button === 2;
+
+      if (tool === 'picker') {
+        const d = ctx.getImageData(p.x, p.y, 1, 1).data;
+        const hex = '#' + [d[0], d[1], d[2]].map((v) => v.toString(16).padStart(2, '0')).join('');
+        if (usingBg) bg = hex;
+        else fg = hex;
+        paintSwatches();
+        tool = toolBefore;
+        toolsBox.querySelectorAll('.tool').forEach((el) => el.classList.remove('active'));
+        toolsBox.querySelector(`[data-tool="${tool}"]`)?.classList.add('active');
+        renderOptions();
+        return;
+      }
+
+      snapshot();
+      drawing = true;
+      last = p;
+      anchor = p;
+
+      if (tool === 'fill') {
+        floodFill(p.x, p.y, ink());
+        drawing = false;
+      } else if (tool === 'pencil') {
+        strokeSeg(p, p, 1, ink());
+      } else if (tool === 'brush') {
+        strokeSeg(p, p, size, ink());
+      } else if (tool === 'eraser') {
+        strokeSeg(p, p, size * 3 + 4, usingBg ? fg : bg);
+      } else if (tool === 'airbrush') {
+        spray();
+        sprayTimer = window.setInterval(spray, 40);
+      } else if (SHAPES.includes(tool)) {
+        shapeBase = ctx.getImageData(0, 0, CW, CH);
+      }
+    });
+    easel.addEventListener('pointermove', (e) => {
+      const p = pos(e);
+      const posPane = document.querySelector('.status-pos');
+      if (posPane) posPane.textContent = p.x + ',' + p.y;
+      if (!drawing) return;
+      if (tool === 'pencil') strokeSeg(last, p, 1, ink());
+      else if (tool === 'brush') strokeSeg(last, p, size, ink());
+      else if (tool === 'eraser') strokeSeg(last, p, size * 3 + 4, usingBg ? fg : bg);
+      else if (SHAPES.includes(tool) && shapeBase) {
+        ctx.putImageData(shapeBase, 0, 0);
+        drawShape(anchor, p);
+      }
+      last = p;
+    });
+    const endStroke = () => {
+      if (sprayTimer) {
+        clearInterval(sprayTimer);
+        sprayTimer = 0;
+      }
+      drawing = false;
+      shapeBase = null;
+      usingBg = false;
+    };
+    easel.addEventListener('pointerup', endStroke);
+    easel.addEventListener('pointercancel', endStroke);
+
+    // --------------------------------------------------------------- menus
+    interface MenuEntry {
+      label?: string;
+      dead?: boolean;
+      run?: () => void;
+      rule?: boolean;
+    }
+    const savePng = () => {
+      easel.toBlob((blob) => {
+        if (!blob) return;
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'untitled.png';
+        a.click();
+        URL.revokeObjectURL(a.href);
+      });
+    };
+    const clearImage = () => {
+      snapshot();
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, CW, CH);
+    };
+    const invertColors = () => {
+      snapshot();
+      const img = ctx.getImageData(0, 0, CW, CH);
+      for (let i = 0; i < img.data.length; i += 4) {
+        img.data[i] = 255 - img.data[i];
+        img.data[i + 1] = 255 - img.data[i + 1];
+        img.data[i + 2] = 255 - img.data[i + 2];
+      }
+      ctx.putImageData(img, 0, 0);
+    };
+    const aboutDialog = () => {
+      document.querySelector('.about-overlay')?.remove();
+      const overlay = document.createElement('div');
+      overlay.className = 'about-overlay';
+      overlay.innerHTML =
+        '<div class="about-box">' +
+        '<div class="titlebar about-title"><span class="title-text">About Paint</span></div>' +
+        '<div class="about-body"><p><b>untitled - Paint</b></p>' +
+        '<p>You hold the power to create<br>all that you desire out of nothing.</p>' +
+        '<p class="about-credit">A John &amp; Mario experience</p>' +
+        '<button class="about-ok" type="button">OK</button></div></div>';
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay || (e.target as HTMLElement).classList.contains('about-ok')) {
+          overlay.remove();
+        }
+      });
+      document.body.appendChild(overlay);
+    };
+
+    const MENUS: Record<string, MenuEntry[]> = {
+      file: [
+        { label: 'New', run: clearImage },
+        { label: 'Open...', dead: true },
+        { rule: true },
+        { label: 'Save As...', run: savePng },
+        { rule: true },
+        { label: 'Print...', dead: true },
+      ],
+      edit: [
+        { label: 'Undo', run: undo },
+        { label: 'Repeat', run: redo },
+        { rule: true },
+        { label: 'Cut', dead: true },
+        { label: 'Copy', dead: true },
+        { label: 'Paste', dead: true },
+      ],
+      view: [
+        { label: 'Tool Box', dead: true },
+        { label: 'Color Box', dead: true },
+        { label: 'Zoom', dead: true },
+      ],
+      image: [
+        { label: 'Flip/Rotate...', dead: true },
+        { label: 'Stretch/Skew...', dead: true },
+        { label: 'Invert Colors', run: invertColors },
+        { rule: true },
+        { label: 'Clear Image', run: clearImage },
+      ],
+      options: [
+        { label: 'Edit Colors...', dead: true },
+        { label: 'Get Colors...', dead: true },
+      ],
+      help: [
+        { label: 'Help Topics', dead: true },
+        { rule: true },
+        { label: 'About Paint', run: aboutDialog },
+      ],
+    };
+
+    let openMenu: HTMLElement | null = null;
+    const closeMenu = () => {
+      openMenu?.remove();
+      openMenu = null;
+      document.querySelectorAll('.menu-item.open').forEach((el) => el.classList.remove('open'));
+    };
+    document.querySelectorAll<HTMLElement>('.menu-item').forEach((item) => {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const already = item.classList.contains('open');
+        closeMenu();
+        if (already) return;
+        const entries = MENUS[item.dataset.menu ?? ''] ?? [];
+        const drop = document.createElement('div');
+        drop.className = 'menu-drop';
+        entries.forEach((entry) => {
+          if (entry.rule) {
+            drop.appendChild(Object.assign(document.createElement('div'), { className: 'menu-rule' }));
+            return;
+          }
+          const row = document.createElement('button');
+          row.type = 'button';
+          row.className = 'menu-row' + (entry.dead ? ' dead' : '');
+          row.textContent = entry.label ?? '';
+          if (!entry.dead && entry.run) {
+            row.addEventListener('click', () => {
+              closeMenu();
+              entry.run!();
+            });
+          }
+          drop.appendChild(row);
+        });
+        const r = item.getBoundingClientRect();
+        drop.style.left = r.left + 'px';
+        drop.style.top = r.bottom + 'px';
+        document.body.appendChild(drop);
+        item.classList.add('open');
+        openMenu = drop;
+      });
+    });
+    document.addEventListener('click', closeMenu);
+
+    window.addEventListener('keydown', (e) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+      } else if (mod && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        redo();
+      }
+    });
+
+    // --------------------------------------------------------------- icon
+    const appIcon = document.querySelector('.app-icon') as HTMLCanvasElement;
+    const ag = appIcon.getContext('2d')!;
+    px(ag, 2, 3, '#fff', 10, 11);
+    ag.strokeStyle = '#000';
+    ag.strokeRect(2.5, 3.5, 9, 10);
+    px(ag, 4, 6, '#FF0000', 2, 2);
+    px(ag, 7, 5, '#00FF00', 2, 2);
+    px(ag, 5, 9, '#0000FF', 2, 2);
+    px(ag, 9, 9, '#FFFF00', 2, 2);
+    ag.strokeStyle = '#804000';
+    ag.beginPath();
+    ag.moveTo(9, 12);
+    ag.lineTo(14, 5);
+    ag.stroke();
+
+    paintArtwork();
+  }
+</script>
+
+<style>
+  .desktop {
+    min-height: 100dvh;
+    display: grid;
+    grid-template-columns: minmax(0, 100%);
+    place-items: center;
+    align-content: center;
+    padding: 2.5rem 0.75rem 4.5rem;
+  }
+  .sr-quote {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    margin: 0;
+  }
+  .no-js-quote {
+    margin: 0 0 1.5rem;
+    padding: 2rem;
+    max-width: 40rem;
+    color: #fff;
+    font-family: var(--font-mono);
+    line-height: 1.9;
+  }
+
+  /* ---- Windows 95 chrome ---- */
+  .paint-window {
+    width: min(100%, 860px);
+    background: #c0c0c0;
+    padding: 3px;
+    box-shadow:
+      inset -1px -1px 0 #000,
+      inset 1px 1px 0 #dfdfdf,
+      inset -2px -2px 0 #808080,
+      inset 2px 2px 0 #fff;
+    font-family: Tahoma, 'MS Sans Serif', 'Segoe UI', sans-serif;
+    font-size: 11px;
+    color: #000;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .titlebar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: #000080;
+    color: #fff;
+    padding: 2px 3px;
+    height: 22px;
+  }
+  .app-icon {
+    width: 16px;
+    height: 16px;
+  }
+  .title-text {
+    font-weight: 700;
+    font-size: 12px;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .title-buttons {
+    display: flex;
+    gap: 2px;
+  }
+  .tb-btn {
+    width: 16px;
+    height: 14px;
+    font-size: 9px;
+    line-height: 1;
+    background: #c0c0c0;
+    border: none;
+    box-shadow:
+      inset -1px -1px 0 #000,
+      inset 1px 1px 0 #fff,
+      inset -2px -2px 0 #808080,
+      inset 2px 2px 0 #dfdfdf;
+    padding: 0;
+  }
+  .menubar {
+    display: flex;
+    padding: 1px 0;
+  }
+  .menu-item {
+    background: none;
+    border: none;
+    font: inherit;
+    padding: 3px 8px;
+  }
+  .menu-item.open,
+  .menu-item:active {
+    background: #000080;
+    color: #fff;
+  }
+  :global(.menu-drop) {
+    position: fixed;
+    z-index: 1000;
+    background: #c0c0c0;
+    padding: 2px;
+    min-width: 130px;
+    box-shadow:
+      inset -1px -1px 0 #000,
+      inset 1px 1px 0 #dfdfdf,
+      inset -2px -2px 0 #808080,
+      inset 2px 2px 0 #fff;
+    font-family: Tahoma, 'MS Sans Serif', 'Segoe UI', sans-serif;
+    font-size: 11px;
+  }
+  :global(.menu-drop .menu-row) {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    font: inherit;
+    padding: 4px 18px;
+  }
+  :global(.menu-drop .menu-row:hover:not(.dead)) {
+    background: #000080;
+    color: #fff;
+  }
+  :global(.menu-drop .menu-row.dead) {
+    color: #808080;
+    text-shadow: 1px 1px 0 #fff;
+  }
+  :global(.menu-drop .menu-rule) {
+    height: 1px;
+    background: #808080;
+    border-bottom: 1px solid #fff;
+    margin: 2px 1px;
+  }
+
+  .paint-body {
+    display: flex;
+    gap: 3px;
+    padding: 3px 0;
+  }
+  .toolbox {
+    width: 58px;
+    flex: none;
+  }
+  .tools {
+    display: grid;
+    grid-template-columns: repeat(2, 25px);
+    justify-content: center;
+    gap: 1px;
+  }
+  .tool {
+    width: 25px;
+    height: 25px;
+    background: #c0c0c0;
+    border: none;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    box-shadow:
+      inset -1px -1px 0 #808080,
+      inset 1px 1px 0 #fff;
+  }
+  .tool.active {
+    box-shadow:
+      inset 1px 1px 0 #808080,
+      inset -1px -1px 0 #fff;
+    background: #dfdfdf;
+  }
+  .tool.dead {
+    opacity: 0.45;
+  }
+  .tool-options {
+    margin: 6px auto 0;
+    width: 50px;
+    min-height: 62px;
+    background: #c0c0c0;
+    box-shadow:
+      inset 1px 1px 0 #808080,
+      inset -1px -1px 0 #fff;
+    display: grid;
+    gap: 2px;
+    align-content: center;
+    justify-items: center;
+    padding: 4px 0;
+  }
+  .size-option {
+    width: 40px;
+    height: 12px;
+    border: none;
+    background: transparent;
+    display: grid;
+    place-items: center;
+    padding: 0;
+  }
+  .size-option span {
+    display: block;
+    width: 28px;
+    background: #000;
+  }
+  .size-option.picked {
+    background: #000080;
+  }
+  .size-option.picked span {
+    background: #fff;
+  }
+
+  .canvas-area {
+    flex: 1;
+    min-width: 0;
+    background: #808080;
+    box-shadow:
+      inset 1px 1px 0 #000,
+      inset -1px -1px 0 #dfdfdf;
+    padding: 4px;
+    display: grid;
+    place-items: start;
+    overflow: hidden;
+  }
+  #easel {
+    background: #fff;
+    max-width: 100%;
+    height: auto;
+    cursor: crosshair;
+    touch-action: none;
+  }
+
+  .palette-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 4px 4px;
+  }
+  .swatch-indicator {
+    position: relative;
+    width: 30px;
+    height: 30px;
+    flex: none;
+    background: #c0c0c0;
+    box-shadow:
+      inset 1px 1px 0 #808080,
+      inset -1px -1px 0 #fff;
+  }
+  .swatch-fg,
+  .swatch-bg {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    box-shadow:
+      inset 1px 1px 0 #808080,
+      inset -1px -1px 0 #fff,
+      0 0 0 1px #000;
+  }
+  .swatch-fg {
+    top: 4px;
+    left: 4px;
+    z-index: 1;
+  }
+  .swatch-bg {
+    bottom: 4px;
+    right: 4px;
+  }
+  .palette {
+    display: grid;
+    grid-template-columns: repeat(14, 17px);
+    grid-auto-rows: 17px;
+    gap: 1px;
+  }
+  .swatch {
+    border: none;
+    padding: 0;
+    box-shadow:
+      inset 1px 1px 0 #808080,
+      inset -1px -1px 0 #fff,
+      0 0 0 1px #000;
+  }
+
+  .statusbar {
+    display: flex;
+    gap: 2px;
+    padding: 2px 1px 1px;
+  }
+  .status-pane {
+    box-shadow:
+      inset 1px 1px 0 #808080,
+      inset -1px -1px 0 #fff;
+    padding: 2px 6px;
+    height: 18px;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .status-help {
+    flex: 1;
+    min-width: 0;
+  }
+  .status-pos {
+    width: 70px;
+    flex: none;
+  }
+
+  :global(.about-overlay) {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: grid;
+    place-items: center;
+    background: rgba(0, 0, 0, 0.2);
+  }
+  :global(.about-box) {
+    width: 260px;
+    background: #c0c0c0;
+    padding: 3px;
+    box-shadow:
+      inset -1px -1px 0 #000,
+      inset 1px 1px 0 #dfdfdf,
+      inset -2px -2px 0 #808080,
+      inset 2px 2px 0 #fff;
+    font-family: Tahoma, 'MS Sans Serif', 'Segoe UI', sans-serif;
+    font-size: 11px;
+  }
+  :global(.about-box .about-title) {
+    background: #000080;
+    color: #fff;
+    padding: 3px 6px;
+    font-weight: 700;
+  }
+  :global(.about-box .about-body) {
+    padding: 12px;
+    text-align: center;
+  }
+  :global(.about-box .about-credit) {
+    color: #808080;
+  }
+  :global(.about-box .about-ok) {
+    margin-top: 8px;
+    width: 70px;
+    height: 22px;
+    background: #c0c0c0;
+    border: none;
+    font: inherit;
+    box-shadow:
+      inset -1px -1px 0 #000,
+      inset 1px 1px 0 #fff,
+      inset -2px -2px 0 #808080,
+      inset 2px 2px 0 #dfdfdf;
+  }
+
+  @media (max-width: 700px) {
+    .desktop {
+      padding: 1rem 0.4rem 4rem;
+    }
+    .toolbox {
+      width: 54px;
+    }
+    .palette {
+      grid-template-columns: repeat(14, minmax(12px, 17px));
+      grid-auto-rows: 15px;
+    }
+  }
+</style>
