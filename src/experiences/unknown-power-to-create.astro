@@ -1175,6 +1175,10 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
   }
   :global(.paint-window.portrait .canvas-area) {
     place-items: center;
+    /* Stop the easel's natural size from setting the track's min-content
+       floor — without this the canvas overflows the phone. */
+    grid-template-columns: minmax(0, 100%);
+    grid-template-rows: minmax(0, 100%);
   }
   :global(.paint-window.portrait #easel) {
     max-width: 100%;
