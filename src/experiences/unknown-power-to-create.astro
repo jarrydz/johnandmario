@@ -92,6 +92,18 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
   const easel = document.getElementById('easel') as HTMLCanvasElement | null;
   if (easel) {
     const ctx = easel.getContext('2d', { willReadFrequently: true })!;
+
+    // On portrait phones the whole window fills the screen and the canvas
+    // itself goes portrait — the shape Paint's default canvas always was.
+    const portrait = window.innerHeight > window.innerWidth;
+    if (portrait) {
+      easel.width = 360;
+      easel.height = 520;
+      document.querySelector('.paint-window')?.classList.add('portrait');
+    }
+    window.matchMedia('(orientation: portrait)').addEventListener('change', () => {
+      location.reload();
+    });
     const CW = easel.width;
     const CH = easel.height;
 
@@ -125,54 +137,82 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
       if (line) lines.push(line);
       return lines;
     };
+    // Layout constants for the two canvas shapes (landscape 640×440,
+    // portrait 360×520) — same scene, recomposed.
+    const ART = portrait
+      ? {
+          sun: { x: 58, y: 62, r: 28, ray1: 36, ray2: 48, rayW: 3 },
+          rainbow: { x: 305, y: 150, r: 82, band: 6, lineW: 5 },
+          font: 22, lineH: 30, textY: 210, maxW: 300, creditF: 14,
+          tree: { x: 272, y: 400 },
+          tulips: [ [56, 448], [104, 462], [160, 452], [36, 476] ] as [number, number][],
+          hills: [
+            { x: 90, ry: 90, c: '#00FF80' },
+            { x: 300, ry: 82, c: '#008000' },
+          ],
+          hillRx: 240,
+        }
+      : {
+          sun: { x: 78, y: 74, r: 34, ray1: 42, ray2: 58, rayW: 3 },
+          rainbow: { x: 575, y: 185, r: 120, band: 8, lineW: 7 },
+          font: 30, lineH: 40, textY: 120, maxW: 400, creditF: 18,
+          tree: { x: 498, y: 336 },
+          tulips: [ [96, 380], [150, 396], [212, 384], [64, 404] ] as [number, number][],
+          hills: [
+            { x: 140, ry: 110, c: '#00FF80' },
+            { x: 520, ry: 100, c: '#008000' },
+          ],
+          hillRx: 330,
+        };
+
     const paintArtwork = () => {
       ctx.fillStyle = '#FFFFFF';
       ctx.fillRect(0, 0, CW, CH);
 
       // Rolling hills.
-      ctx.fillStyle = '#00FF80';
-      ctx.beginPath();
-      ctx.ellipse(140, CH + 40, 320, 110, 0, Math.PI, 0);
-      ctx.fill();
-      ctx.fillStyle = '#008000';
-      ctx.beginPath();
-      ctx.ellipse(520, CH + 50, 340, 100, 0, Math.PI, 0);
-      ctx.fill();
+      for (const hill of ART.hills) {
+        ctx.fillStyle = hill.c;
+        ctx.beginPath();
+        ctx.ellipse(hill.x, CH + 45, ART.hillRx, hill.ry, 0, Math.PI, 0);
+        ctx.fill();
+      }
 
       // Sun, top-left, with rays.
+      const { sun } = ART;
       ctx.fillStyle = '#FFFF00';
       ctx.beginPath();
-      ctx.arc(78, 74, 34, 0, Math.PI * 2);
+      ctx.arc(sun.x, sun.y, sun.r, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = '#FFFF00';
-      ctx.lineWidth = 3;
+      ctx.lineWidth = sun.rayW;
       for (let i = 0; i < 8; i++) {
         const a = (i * Math.PI) / 4 + 0.4;
         ctx.beginPath();
-        ctx.moveTo(78 + Math.cos(a) * 42, 74 + Math.sin(a) * 42);
-        ctx.lineTo(78 + Math.cos(a) * 58, 74 + Math.sin(a) * 58);
+        ctx.moveTo(sun.x + Math.cos(a) * sun.ray1, sun.y + Math.sin(a) * sun.ray1);
+        ctx.lineTo(sun.x + Math.cos(a) * sun.ray2, sun.y + Math.sin(a) * sun.ray2);
         ctx.stroke();
       }
 
       // Rainbow, top-right — painted before the words, which go on top,
       // exactly the order a kid in 1996 would have done it.
       const arcs = ['#FF0000', '#FF8040', '#FFFF00', '#00FF00', '#0000FF', '#FF00FF'];
-      ctx.lineWidth = 7;
+      ctx.lineWidth = ART.rainbow.lineW;
       arcs.forEach((c, i) => {
         ctx.strokeStyle = c;
         ctx.beginPath();
-        ctx.arc(575, 185, 120 - i * 8, Math.PI, Math.PI * 1.55);
+        ctx.arc(ART.rainbow.x, ART.rainbow.y, ART.rainbow.r - i * ART.rainbow.band, Math.PI, Math.PI * 1.55);
         ctx.stroke();
       });
 
       // A tree on the green hill.
+      const { tree } = ART;
       ctx.fillStyle = '#804000';
-      ctx.fillRect(492, 336, 12, 46);
+      ctx.fillRect(tree.x - 6, tree.y, 12, 46);
       ctx.fillStyle = '#008000';
       ctx.beginPath();
-      ctx.arc(498, 318, 30, 0, Math.PI * 2);
-      ctx.arc(478, 334, 22, 0, Math.PI * 2);
-      ctx.arc(518, 334, 22, 0, Math.PI * 2);
+      ctx.arc(tree.x, tree.y - 18, 30, 0, Math.PI * 2);
+      ctx.arc(tree.x - 20, tree.y - 2, 22, 0, Math.PI * 2);
+      ctx.arc(tree.x + 20, tree.y - 2, 22, 0, Math.PI * 2);
       ctx.fill();
 
       // Tulips.
@@ -188,21 +228,21 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
         ctx.arc(x, y - 4, 6, 0, Math.PI * 2);
         ctx.fill();
       };
-      tulip(96, 380, '#FF0000');
-      tulip(150, 396, '#FF00FF');
-      tulip(212, 384, '#FF8040');
-      tulip(64, 404, '#FF0080');
+      const tulipColors = ['#FF0000', '#FF00FF', '#FF8040', '#FF0080'];
+      ART.tulips.forEach(([x, y], i) => tulip(x, y, tulipColors[i]));
 
       // The words, across the sky.
       const text = document.querySelector('.sr-quote p')?.textContent ?? '';
       ctx.fillStyle = '#000080';
-      ctx.font = 'bold 30px "Comic Sans MS", "Comic Sans", cursive';
+      ctx.font = `bold ${ART.font}px "Comic Sans MS", "Comic Sans", cursive`;
       ctx.textAlign = 'center';
-      const lines = wrapText(text, 400);
-      lines.forEach((line, i) => ctx.fillText(line, CW / 2 + 10, 120 + i * 40));
-      ctx.font = 'italic 18px "Comic Sans MS", "Comic Sans", cursive';
+      const lines = wrapText(text, ART.maxW);
+      lines.forEach((line, i) => ctx.fillText(line, CW / 2 + (portrait ? 0 : 10), ART.textY + i * ART.lineH));
+      ctx.font = `italic ${ART.creditF}px "Comic Sans MS", "Comic Sans", cursive`;
       const credit = document.querySelector('.sr-quote cite')?.textContent ?? '';
-      if (credit) ctx.fillText('- ' + credit.toLowerCase(), CW / 2 + 10, 120 + lines.length * 40 + 6);
+      if (credit) {
+        ctx.fillText('- ' + credit.toLowerCase(), CW / 2 + (portrait ? 0 : 10), ART.textY + lines.length * ART.lineH + 6);
+      }
       ctx.textAlign = 'start';
     };
 
@@ -1111,15 +1151,41 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
   }
 
   @media (max-width: 700px) {
-    .desktop {
-      padding: 1rem 0.4rem 4rem;
-    }
     .toolbox {
       width: 54px;
     }
     .palette {
       grid-template-columns: repeat(14, minmax(12px, 17px));
       grid-auto-rows: 15px;
+    }
+  }
+
+  /* Portrait phones: the window IS the screen — full-bleed Paint with a
+     portrait canvas (the JS swaps the easel to 360×520), leaving only a
+     slim strip of desktop below for the Back link. */
+  :global(.paint-window.portrait) {
+    width: 100%;
+    height: calc(100dvh - 3.4rem);
+    display: flex;
+    flex-direction: column;
+  }
+  :global(.paint-window.portrait .paint-body) {
+    flex: 1;
+    min-height: 0;
+  }
+  :global(.paint-window.portrait .canvas-area) {
+    place-items: center;
+  }
+  :global(.paint-window.portrait #easel) {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+  }
+  @media (orientation: portrait) and (max-width: 700px) {
+    .desktop {
+      padding: 0.4rem 0.4rem 3rem;
+      align-content: start;
     }
   }
 </style>
