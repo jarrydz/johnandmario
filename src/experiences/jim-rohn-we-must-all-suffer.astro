@@ -9,6 +9,10 @@ import ExperienceFrame from '../layouts/ExperienceFrame.astro';
  * a small monospace face, one character at a time, behind a blinking DOS-style
  * block cursor. Discipline is keystrokes — small, steady, one at a time.
  *
+ * The terminal is live on every device: hardware keyboards type straight in
+ * (window keydown), and on touch screens a tap summons the soft keyboard via
+ * a hidden textarea whose input events drive the same terminal.
+ *
  * Legibility floor (ADR 0015): the full quote is server-rendered as real DOM
  * text. The inline script clears and retypes it only when JS runs AND the
  * visitor allows motion — so no-JS and reduced-motion visitors see the
@@ -37,6 +41,13 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
       }
       <span class="cursor" aria-hidden="true"></span>
     </blockquote>
+    <textarea
+      class="keypad"
+      aria-label="Type into the terminal"
+      autocapitalize="none"
+      autocomplete="off"
+      autocorrect="off"
+      spellcheck="false"></textarea>
   </main>
 
   <script is:inline>
@@ -148,30 +159,87 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
         return false;
       };
 
+      const typeText = (text) => {
+        interrupted = true;
+        const span = currentSpan();
+        if (!span) return;
+        for (const ch of text) appendChar(span, ch);
+        keystroke();
+      };
+      const erase = () => {
+        interrupted = true;
+        const span = currentSpan();
+        if (!span) return;
+        // Backspace: eat backwards, hopping up a line when this one is dry.
+        if (!deleteChar(span)) {
+          const idx = lines.findIndex((l) => l.span === span);
+          if (idx > 0) {
+            lines[idx - 1].span.after(cursor);
+            deleteChar(lines[idx - 1].span);
+          }
+        }
+        keystroke();
+      };
+
+      // Hardware keyboards (and iOS soft keyboards, which report real keys).
+      // preventDefault() keeps handled keys out of the keypad below, so the
+      // two input paths never double-type.
       window.addEventListener('keydown', (e) => {
         if (e.metaKey || e.ctrlKey || e.altKey || e.isComposing) return;
         const printable = e.key.length === 1;
         if (!printable && e.key !== 'Backspace' && e.key !== 'Enter') return;
         e.preventDefault();
-        interrupted = true;
+        if (printable) typeText(e.key);
+        else if (e.key === 'Enter') typeText('\n');
+        else erase();
+      });
 
-        const span = currentSpan();
-        if (!span) return;
-        if (printable) {
-          appendChar(span, e.key);
-        } else if (e.key === 'Enter') {
-          appendChar(span, '\n');
-        } else {
-          // Backspace: eat backwards, hopping up a line when this one is dry.
-          if (!deleteChar(span)) {
-            const idx = lines.findIndex((l) => l.span === span);
-            if (idx > 0) {
-              lines[idx - 1].span.after(cursor);
-              deleteChar(lines[idx - 1].span);
-            }
-          }
-        }
-        keystroke();
+      // ---------------------------------------------------- the soft keyboard
+      // Touch screens have no keys to press until something focusable asks for
+      // them: a tap focuses the invisible keypad textarea, and its input
+      // events drive the terminal. Android IMEs don't report real keys on
+      // keydown, so the keypad holds a one-character sentinel and each input
+      // event is diffed against what was last echoed — a deletion reaching the
+      // sentinel is a backspace, growth is typing. Composition (swipe typing,
+      // autocorrect) is echoed progressively and the buffer is only re-armed
+      // once the IME lets go.
+      const pad = document.querySelector('.keypad');
+      const PAD = ' ';
+      let lastTail = '';
+      let composing = false;
+      const arm = () => {
+        pad.value = PAD;
+        lastTail = '';
+        pad.setSelectionRange(PAD.length, PAD.length);
+      };
+      const sync = () => {
+        const tail = pad.value.length < PAD.length ? '' : pad.value.slice(PAD.length);
+        let common = 0;
+        while (common < tail.length && common < lastTail.length && tail[common] === lastTail[common])
+          common++;
+        for (let i = lastTail.length; i > common; i--) erase();
+        if (tail.length > common) typeText(tail.slice(common));
+        if (pad.value.length < PAD.length) erase(); // the sentinel itself was eaten
+        lastTail = tail;
+        if (!composing) arm();
+      };
+      pad.addEventListener('compositionstart', () => (composing = true));
+      pad.addEventListener('compositionend', () => {
+        composing = false;
+        sync();
+      });
+      pad.addEventListener('input', sync);
+      pad.addEventListener('blur', arm);
+      arm(); // armed from the start — focus events can arrive late in hidden tabs
+
+      // Coarse pointers only — a mouse click must keep selecting quote text,
+      // and hardware keyboards already have the window listener.
+      document.querySelector('.crt').addEventListener('pointerup', (e) => {
+        if (e.pointerType !== 'touch' && e.pointerType !== 'pen') return;
+        const selection = document.getSelection();
+        if (selection && !selection.isCollapsed) return; // long-press select stays a select
+        pad.focus({ preventScroll: true });
+        arm();
       });
     })();
   </script>
@@ -217,6 +285,28 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
   }
   .attribution cite {
     font-style: normal;
+  }
+  /* The soft-keyboard hook: a real textarea so a tap can summon the keyboard,
+     but never seen and never a tap target itself. 16px font holds iOS back
+     from zooming to it on focus. */
+  .keypad {
+    position: fixed;
+    bottom: 0;
+    right: 0;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    border: 0;
+    opacity: 0;
+    background: transparent;
+    color: transparent;
+    caret-color: transparent;
+    font-size: 16px;
+    resize: none;
+    pointer-events: none;
+  }
+  .keypad:focus {
+    outline: none;
   }
   /* DOS block cursor: sits flush after the last typed character, blinking in
      hard steps — no fade. Under prefers-reduced-motion the frame freezes the
