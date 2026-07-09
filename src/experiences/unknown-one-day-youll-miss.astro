@@ -43,7 +43,11 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
       </blockquote>
     </noscript>
     <canvas id="invaders" width="960" height="704" aria-hidden="true"></canvas>
-    <p class="touch-hint" aria-hidden="true">DRAG TO MOVE&ensp;·&ensp;TAP TO FIRE</p>
+    <div class="pad" aria-hidden="true">
+      <button class="pad-btn pad-left" data-dir="-1" type="button">◀</button>
+      <button class="pad-btn pad-right" data-dir="1" type="button">▶</button>
+      <button class="pad-btn pad-fire" type="button">FIRE</button>
+    </div>
   </main>
 </ExperienceFrame>
 
@@ -51,9 +55,26 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
   const canvas = document.getElementById('invaders') as HTMLCanvasElement | null;
   if (canvas) {
     const ctx = canvas.getContext('2d')!;
-    const W = 960;
-    const H = 704;
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // Two cabinets. Landscape is the wide three-line board; portrait rebuilds
+    // the whole machine tall — the original was a portrait game — with the
+    // quote reflowed over four shorter lines so it fills a phone's width.
+    const portrait = window.innerHeight > window.innerWidth;
+    const W = portrait ? 640 : 960;
+    const H = portrait ? 880 : 704;
+    canvas.width = W;
+    canvas.height = H;
+    // The CSS sizing must know the aspect too, so the cabinet fills the
+    // viewport without overflowing it in either direction.
+    canvas.style.width = portrait
+      ? `min(100%, calc((100dvh - 13rem) * ${(W / H).toFixed(4)}))`
+      : `min(100%, 1200px, calc((100dvh - 4.5rem) * ${(W / H).toFixed(4)}))`;
+    // Geometry mid-game doesn't survive a rotation — just start the cabinet
+    // over in the shape that now fits.
+    window.matchMedia('(orientation: portrait)').addEventListener('change', () => {
+      location.reload();
+    });
 
     const WHITE = '#f4f4f4';
     const GREEN = '#1ee31e';
@@ -172,11 +193,14 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
     };
 
     // ----------------------------------------------------------------- fleet
-    // The invaders assemble into the quote, three ranks of words.
-    const LINES = ["ONE DAY, YOU'LL", 'MISS THIS VERSION', 'OF YOUR LIFE'];
+    // The invaders assemble into the quote — three ranks wide, four tall.
+    const LINES = portrait
+      ? ['ONE DAY,', "YOU'LL MISS", 'THIS VERSION', 'OF YOUR LIFE']
+      : ["ONE DAY, YOU'LL", 'MISS THIS VERSION', 'OF YOUR LIFE'];
+    const LINE_SPECIES = portrait ? [0, 1, 1, 2] : [0, 1, 2];
     const CELL = 8; // 6px alien + 2px air
     const LINE_H = 7 * CELL;
-    const LINE_GAP = 20;
+    const LINE_GAP = portrait ? 16 : 20;
     const FLEET_TOP = 150;
 
     interface FleetLine {
@@ -204,15 +228,15 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
           }
         }
       });
-      return { startX, y, cells, lookup, species: li };
+      return { startX, y, cells, lookup, species: LINE_SPECIES[li] };
     });
-    const FLEET_BOTTOM = FLEET_TOP + 3 * LINE_H + 2 * LINE_GAP;
+    const FLEET_BOTTOM = FLEET_TOP + LINES.length * LINE_H + (LINES.length - 1) * LINE_GAP;
 
     // --------------------------------------------------------------- shields
     const SHIELD_SCALE = 3;
     const SHIELD_W = 22;
     const SHIELD_H = 16;
-    const SHIELD_Y = 540;
+    const SHIELD_Y = portrait ? 700 : 540;
     const makeShieldGrid = () => {
       const grid = new Uint8Array(SHIELD_W * SHIELD_H);
       for (let r = 0; r < SHIELD_H; r++) {
@@ -296,8 +320,8 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
     };
 
     // ----------------------------------------------------------------- state
-    const GROUND_Y = 660;
-    const CANNON_Y = 622;
+    const GROUND_Y = portrait ? 828 : 660;
+    const CANNON_Y = portrait ? 790 : 622;
     let score = 0;
     let hiScore = 9990;
     let lives = 3;
@@ -308,7 +332,7 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
     let marchFrame = 0;
     let marchTimer = 0;
     const MARCH_STEP = 8;
-    const MARCH_BOUND = 32;
+    const MARCH_BOUND = portrait ? 24 : 32;
     const MARCH_MS = 520;
 
     // Destroyed aliens stay dead until the stage is cleared, the game ends,
@@ -324,6 +348,8 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
     let manualUntil = 0;
     const keys = { left: false, right: false };
     let touchX: number | null = null; // canvas-space x the finger is steering to
+    let fireHeld = false; // FIRE button held: re-fire the moment the bullet frees
+    let padHeld = false; // any pad button down keeps manual control alive
 
     let bullet: { x: number; y: number } | null = null;
     let nextAutoFire = 1500;
@@ -407,6 +433,52 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
       };
       canvas.addEventListener('pointerup', endPointer);
       canvas.addEventListener('pointercancel', endPointer);
+
+      // Arcade pad (touch devices): hold ◀ ▶ to move, hold FIRE to keep
+      // shooting — the one-bullet rule still paces the volley. Buttons are
+      // the primary mobile controls; canvas dragging stays as a bonus.
+      const holdButton = (btn: Element, press: () => void, release: () => void) => {
+        btn.addEventListener('pointerdown', (e) => {
+          e.preventDefault();
+          (btn as HTMLElement).setPointerCapture((e as PointerEvent).pointerId);
+          press();
+        });
+        for (const evt of ['pointerup', 'pointercancel']) {
+          btn.addEventListener(evt, release);
+        }
+        btn.addEventListener('contextmenu', (e) => e.preventDefault());
+      };
+      document.querySelectorAll('.pad-btn[data-dir]').forEach((btn) => {
+        const dir = Number((btn as HTMLElement).dataset.dir);
+        holdButton(
+          btn,
+          () => {
+            if (dir < 0) keys.left = true;
+            else keys.right = true;
+            padHeld = true;
+          },
+          () => {
+            if (dir < 0) keys.left = false;
+            else keys.right = false;
+            padHeld = keys.left || keys.right || fireHeld;
+          }
+        );
+      });
+      const fireBtn = document.querySelector('.pad-fire');
+      if (fireBtn) {
+        holdButton(
+          fireBtn,
+          () => {
+            fireHeld = true;
+            padHeld = true;
+            fire();
+          },
+          () => {
+            fireHeld = false;
+            padHeld = keys.left || keys.right;
+          }
+        );
+      }
     }
 
     // ---------------------------------------------------------------- update
@@ -423,6 +495,8 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
       }
 
       // Cannon: attract-mode patrol unless a human has the controls.
+      if (padHeld) manualUntil = t + 6000;
+      if (fireHeld) fire();
       if (t > cannonDeadUntil && !gameOverUntil) {
         if (t < manualUntil) {
           if (touchX !== null) {
@@ -643,7 +717,7 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
       drawText('CREDIT 00', W - 48 - textWidth('CREDIT 00', 2), GROUND_Y + 14, 2, WHITE);
 
       if (gameOverUntil && Math.floor(t / 400) % 2 === 0) {
-        drawText('GAME OVER', (W - textWidth('GAME OVER', 3)) / 2, 440, 3, RED);
+        drawText('GAME OVER', (W - textWidth('GAME OVER', 3)) / 2, SHIELD_Y - 110, 3, RED);
       }
     };
 
@@ -668,10 +742,19 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
   .arcade {
     min-height: 100dvh;
     display: grid;
+    /* minmax(0, 100%) stops the canvas' natural width from setting the
+       track's min-content floor — without it the cabinet overflows phones. */
+    grid-template-columns: minmax(0, 100%);
     place-items: center;
     align-content: center;
+    justify-items: center;
     background: #000;
     padding: 1.5rem 0.75rem 3rem;
+  }
+  @media (max-width: 600px) {
+    .arcade {
+      padding: 0.75rem 0.4rem 3.25rem;
+    }
   }
   canvas {
     /* Fit the whole cabinet on screen: never wider than the viewport, never
@@ -686,21 +769,50 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
     -webkit-user-select: none;
     -webkit-tap-highlight-color: transparent;
   }
-  /* Control hint for players without a keyboard. */
-  .touch-hint {
+  /* Arcade pad — cabinet hardware for players without a keyboard. Hidden on
+     fine-pointer machines; on touch it's the primary control. */
+  .pad {
     display: none;
-    margin: 0.9rem 0 0;
-    font-family: var(--font-mono);
-    font-size: 0.62rem;
-    letter-spacing: 0.22em;
-    color: #f4f4f4;
-    opacity: 0.4;
-    text-align: center;
+    width: 100%;
+    max-width: 30rem;
+    gap: 0.6rem;
+    margin-top: 1rem;
+    padding: 0 0.25rem;
   }
   @media (pointer: coarse) {
-    .touch-hint {
-      display: block;
+    .pad {
+      display: flex;
     }
+  }
+  .pad-btn {
+    appearance: none;
+    background: transparent;
+    border: 2px solid #1ee31e;
+    border-radius: 0;
+    color: #1ee31e;
+    font-family: var(--font-mono);
+    font-size: 1rem;
+    letter-spacing: 0.08em;
+    min-height: 3.5rem;
+    padding: 0 1.1rem;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .pad-left,
+  .pad-right {
+    flex: 1;
+    max-width: 6rem;
+  }
+  .pad-fire {
+    flex: 1.4;
+    margin-left: auto;
+    max-width: 9rem;
+  }
+  .pad-btn:active {
+    background: #1ee31e;
+    color: #000;
   }
   .sr-quote {
     position: absolute;
