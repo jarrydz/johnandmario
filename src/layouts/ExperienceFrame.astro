@@ -64,6 +64,10 @@ const description = Astro.props.description ?? rawBody.slice(0, 200);
     min-height: 100dvh;
     margin: 0;
     overscroll-behavior: none;
+    /* Experiences are apps, not documents: kill iOS double-tap-to-zoom
+       everywhere on the page (rapid taps near buttons land between them and
+       zoom the screen). `manipulation` keeps pinch-zoom for accessibility. */
+    touch-action: manipulation;
     padding: env(safe-area-inset-top) env(safe-area-inset-right)
       env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
