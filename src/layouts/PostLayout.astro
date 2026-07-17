@@ -55,7 +55,14 @@ const {
   {title && <h1 class="post-title">{title}</h1>}
   <div class="caption prose" data-pagefind-body>
     <slot />
-    {description && <p class="post-description">{description}</p>}
+    {
+      description && (
+        <details class="post-description-details">
+          <summary class="post-description-summary">Description</summary>
+          <p class="post-description">{description}</p>
+        </details>
+      )
+    }
   </div>
 
   <footer class="post-footer">

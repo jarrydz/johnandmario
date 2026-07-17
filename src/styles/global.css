@@ -291,6 +291,39 @@ main {
   margin-bottom: 0;
 }
 
+/* Collapsible description accordion (native <details>), mirroring the muted,
+   underlined look of the tags "+N more" toggle. */
+.post-description-details {
+  margin-top: 0.85rem;
+}
+.post-description-summary {
+  cursor: pointer;
+  color: var(--color-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  list-style: none;
+  width: fit-content;
+}
+.post-description-summary::-webkit-details-marker {
+  display: none;
+}
+.post-description-summary::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: 0.4rem;
+  text-decoration: none;
+  transition: transform 0.15s ease;
+}
+.post-description-details[open] .post-description-summary::before {
+  transform: rotate(90deg);
+}
+.post-description-summary:hover {
+  color: var(--color-text);
+}
+.post-description {
+  margin-top: 0.5rem;
+}
+
 /* ---- Post meta + tags ---- */
 .post-meta {
   margin-top: 0.75rem;
