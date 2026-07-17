@@ -66,8 +66,8 @@ const {
   </div>
 
   <footer class="post-footer">
-    <p><time datetime={date.toISOString()} data-pagefind-meta="date">{formatDate(date)}</time></p>
     {tags && tags.length > 0 && <p class="tags-line"><Tags tags={tags} id={post.id} /></p>}
+    <p><time datetime={date.toISOString()} data-pagefind-meta="date">{formatDate(date)}</time></p>
     <Attribution source={source} sourceUrl={source_url} />
     {
       tumblr_url && (
