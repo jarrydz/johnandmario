@@ -1,0 +1,724 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import ExperienceFrame from '../layouts/ExperienceFrame.astro';
+
+/**
+ * "Bez muke nema nauke." — Croatian proverb ("without hardship there is no knowledge").
+ *
+ * The idea: knowledge is not given, it is earned through friction. The screen
+ * is a brutalist telemetry panel drowning in noise — drifting glyph rows,
+ * ticking odometers, a churning display letter. The proverb sits in the middle
+ * as a field of scrambling monospace slots. It only RESOLVES into legible words
+ * while the visitor spends effort (holding, dragging, scrolling, typing); the
+ * moment effort stops, entropy pulls the letters back toward noise. The English
+ * meaning is the last thing to surface — understanding arrives only after the
+ * hardship of decoding the words above it. Sustained effort builds "mastery",
+ * a floor that keeps the words alive once truly earned.
+ *
+ * Legibility floor (ADR 0015): the quote (and its translation) are server-
+ * rendered as real, selectable text — that resolved state is also the
+ * reduced-motion / no-JS still. The inline script scrambles and re-resolves
+ * only when JS runs AND motion is allowed.
+ */
+
+interface Props {
+  quote: CollectionEntry<'quotes'>;
+}
+
+const { quote } = Astro.props;
+const { attribution } = quote.data;
+const body = (quote.body ?? '').replace(/\s+/g, ' ').trim() || 'Bez muke nema nauke.';
+const translation = 'without hardship there is no knowledge';
+
+const croChars = [...body];
+const enChars = [...translation];
+
+// Deterministic build-time noise so the field is stable across builds (the
+// motion is CSS drift + JS mutation at runtime, not build randomness).
+const NOISE = 'ABCDEFGHJKLMNPQRSTUVWXYZ0123456789/\\|<>+=*·:.-';
+function rng(seed: number) {
+  let s = seed >>> 0;
+  return () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296;
+}
+function noiseRow(len: number, seed: number) {
+  const r = rng(seed);
+  let out = '';
+  for (let i = 0; i < len; i++) out += NOISE[Math.floor(r() * NOISE.length)];
+  return out;
+}
+const rows = Array.from({ length: 9 }, (_, i) => ({
+  text: noiseRow(90, 4327 + i * 131),
+  dir: i % 2 === 0 ? 'a' : 'b',
+  dur: (22 + ((i * 7) % 18)).toString(),
+}));
+
+// Odometer + display seeds — the still shows an "attained" reading.
+const odoA = '33550336';
+const odoB = '85043271';
+---
+
+<ExperienceFrame
+  quote={quote}
+  backdrop="#0f0f0f"
+  description="Bez muke nema nauke — a Croatian proverb: without hardship there is no knowledge. An interactive brutalist experience where the words resolve only through effort."
+>
+  <main class="env" data-mode="dark">
+    <!-- ── top HUD ────────────────────────────────────────────────────── -->
+    <header class="hud" aria-hidden="true">
+      <span class="hud-l">MUKA ▸ NAUKA</span>
+      <span class="hud-c">ENVIRON // PROVERB · HR-05</span>
+      <span class="hud-r">
+        <button class="mode" type="button" aria-label="Toggle light and dark">◐ <span class="mode-l">DARK</span></button>
+        <span class="clock">0x000000</span>
+      </span>
+    </header>
+
+    <!-- ── core: noise field, giant glyph, and the decoding words ──────── -->
+    <div class="core">
+      <div class="field" aria-hidden="true">
+        {
+          rows.map((r) => (
+            <div class="line">
+              <span class={`row ${r.dir}`} style={`--d:${r.dur}s`}>{r.text + r.text}</span>
+            </div>
+          ))
+        }
+      </div>
+
+      <div class="giant" aria-hidden="true"><span class="giant-ch">N</span></div>
+
+      <div class="decode">
+        <blockquote class="truth" lang="hr" cite="https://en.wikipedia.org/wiki/Croatian_proverbs">
+          <p class="cro">{croChars.map((ch) => (<span class={`g${ch === ' ' ? ' sp' : ''}`} data-ch={ch}>{ch}</span>))}</p>
+          {attribution && (
+            <footer class="by">— <cite>{attribution}</cite></footer>
+          )}
+        </blockquote>
+
+        <p class="gloss" lang="en">
+          <span class="gloss-tag" aria-hidden="true">EN //</span>{enChars.map((ch) => (<span class={`g${ch === ' ' ? ' sp' : ''}`} data-ch={ch}>{ch}</span>))}</p>
+
+        <div class="meter" aria-hidden="true">
+          <span class="meter-lbl">SPOZNAJA</span>
+          <span class="bar"><span class="bar-fill" style="width:100%"></span></span>
+          <span class="meter-val">100</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── bottom HUD ─────────────────────────────────────────────────── -->
+    <footer class="hud-b" aria-hidden="true">
+      <span class="tele">
+        ENTROPY <b class="t-ent">000</b>% · SIGNAL <b class="t-sig">100</b>%
+      </span>
+      <span class="hint">HOLD · DRAG · SCROLL · TYPE — ENDURE</span>
+      <span class="odos">
+        <span class="odo">{[...odoA].map((d) => <span class="d">{d}</span>)}</span>
+        <span class="sep">│</span>
+        <span class="odo">{[...odoB].map((d) => <span class="d">{d}</span>)}</span>
+      </span>
+    </footer>
+  </main>
+
+  <script is:inline>
+    // Parser-blocking on purpose: scramble the words before first paint so the
+    // page opens as noise (motion path), never a flash of the resolved still.
+    (() => {
+      const root = document.querySelector('.env');
+      if (!root) return;
+
+      // ── palette: inherit the site theme, and let the visitor flip it ──
+      const btn = root.querySelector('.mode');
+      const modeLabel = root.querySelector('.mode-l');
+      const paint = (m) => {
+        root.dataset.mode = m;
+        if (modeLabel) modeLabel.textContent = m === 'light' ? 'LIGHT' : 'DARK';
+        document.body.style.background = m === 'light' ? '#ede4dd' : '#0f0f0f';
+      };
+      let mode =
+        document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+      paint(mode);
+      if (btn) {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          mode = mode === 'light' ? 'dark' : 'light';
+          paint(mode);
+          try {
+            localStorage.setItem('theme', mode);
+            document.documentElement.setAttribute('data-theme', mode === 'light' ? 'light' : '');
+            if (mode !== 'light') document.documentElement.removeAttribute('data-theme');
+          } catch (e) {}
+        });
+      }
+
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      // Reduced motion / no JS: the server-rendered resolved state IS the still.
+      if (reduce) return;
+
+      // ── slots: every letter is a slot that scrambles until effort lifts
+      //    "knowledge" past its threshold. Croatian resolves first (0.06–0.72),
+      //    the English meaning last (0.80–0.96) — understanding is the reward. ─
+      const UP = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      const LO = 'abcdefghijklmnopqrstuvwxyz';
+      const NU = '0123456789';
+      const pick = (set) => set[(Math.random() * set.length) | 0];
+      const scramble = (ch) => {
+        if (/[A-Z]/.test(ch)) return pick(UP);
+        if (/[a-z]/.test(ch)) return pick(LO);
+        if (/[0-9]/.test(ch)) return pick(NU);
+        return ch; // spaces / punctuation stay put — they are the skeleton
+      };
+
+      const buildSlots = (nodes, lo, hi) => {
+        const live = nodes.filter((el) => !el.classList.contains('sp'));
+        const span = hi - lo;
+        return nodes
+          .map((el) => {
+            if (el.classList.contains('sp')) return null;
+            const idx = live.indexOf(el);
+            const frac = live.length > 1 ? idx / (live.length - 1) : 0;
+            return { el, ch: el.dataset.ch, t: lo + span * frac, on: false };
+          })
+          .filter(Boolean);
+      };
+
+      const cro = buildSlots([...root.querySelectorAll('.cro .g')], 0.06, 0.72);
+      const en = buildSlots([...root.querySelectorAll('.gloss .g')], 0.8, 0.96);
+      const slots = [...cro, ...en];
+
+      // Instant scramble so first paint is noise, not the resolved still.
+      slots.forEach((s) => {
+        s.el.textContent = scramble(s.ch);
+        s.el.classList.add('raw');
+      });
+
+      const giant = root.querySelector('.giant-ch');
+      const barFill = root.querySelector('.bar-fill');
+      const meterVal = root.querySelector('.meter-val');
+      const clock = root.querySelector('.clock');
+      const tEnt = root.querySelector('.t-ent');
+      const tSig = root.querySelector('.t-sig');
+      const hint = root.querySelector('.hint');
+      const odoDigits = [...root.querySelectorAll('.odo')].map((o) => [...o.querySelectorAll('.d')]);
+      if (barFill) barFill.style.width = '0%';
+
+      // ── effort model ──────────────────────────────────────────────────
+      // knowledge : the visible level of understanding (0..1)
+      // mastery   : a floor raised by sustained, EARNED knowledge — hardship
+      //             that pays off, so letting go no longer loses everything.
+      let knowledge = 0;
+      let mastery = 0;
+      let activity = 0; // recent input energy (drives odometers + churn)
+      let push = 0; // one-frame impulses from discrete inputs
+      let holding = false;
+      let engaged = false; // real user effort (gates mastery — the intro can't cheat)
+      let enlightened = false;
+      let frame = 0;
+      const pad = (n, w) => String(Math.max(0, Math.floor(n))).padStart(w, '0');
+      const jsNoise = (len) => {
+        let o = '';
+        for (let i = 0; i < len; i++) o += pick(NOISE);
+        return o;
+      };
+      const NOISE = UP + NU + '/\\|<>+=*·:.-';
+      let odo0 = parseInt('33550336', 10);
+      let odo1 = parseInt('85043271', 10);
+
+      const engage = () => (engaged = true);
+      root.addEventListener('pointerdown', () => {
+        holding = true;
+        activity = Math.min(1, activity + 0.4);
+        engage();
+      });
+      window.addEventListener('pointerup', () => (holding = false));
+      window.addEventListener('pointercancel', () => (holding = false));
+      root.addEventListener('pointermove', (e) => {
+        const d = Math.abs(e.movementX || 0) + Math.abs(e.movementY || 0);
+        if (!d) return;
+        push += Math.min(0.02, d * 0.0004);
+        activity = Math.min(1, activity + d * 0.004);
+        engage();
+      });
+      // Touch drag: pointermove gives no movementX on many mobiles, so diff by hand.
+      let lastTouch = null;
+      root.addEventListener(
+        'touchmove',
+        (e) => {
+          const t = e.touches[0];
+          if (!t) return;
+          if (lastTouch) {
+            const d = Math.abs(t.clientX - lastTouch.x) + Math.abs(t.clientY - lastTouch.y);
+            push += Math.min(0.03, d * 0.0006);
+            activity = Math.min(1, activity + d * 0.006);
+          }
+          lastTouch = { x: t.clientX, y: t.clientY };
+          engage();
+        },
+        { passive: true },
+      );
+      root.addEventListener('touchend', () => (lastTouch = null));
+      window.addEventListener(
+        'wheel',
+        (e) => {
+          push += Math.min(0.03, Math.abs(e.deltaY) * 0.0006);
+          activity = Math.min(1, activity + 0.15);
+          engage();
+        },
+        { passive: true },
+      );
+      window.addEventListener('keydown', (e) => {
+        if (e.metaKey || e.ctrlKey || e.altKey) return; // let shortcuts through
+        push += 0.03;
+        activity = Math.min(1, activity + 0.25);
+        engage();
+      });
+
+      // ── the loop ──────────────────────────────────────────────────────
+      let introEnd = 0;
+      const loop = (now) => {
+        frame++;
+
+        // Intro: one unearned glimpse of full knowledge, then entropy reclaims
+        // it — teaching both the interaction and the proverb in a single beat.
+        if (now < introEnd) knowledge += 0.024;
+
+        if (holding) knowledge += 0.011;
+        knowledge += push;
+        push = 0;
+
+        // Entropy: a constant leak toward the mastery floor. Fierce until the
+        // knowledge is earned; gentle once it is (understanding, kept alive).
+        const leak = enlightened ? 0.0004 : 0.004;
+        knowledge += (mastery - knowledge) * 0.02 - leak;
+        knowledge = knowledge < 0 ? 0 : knowledge > 1 ? 1 : knowledge;
+
+        if (engaged && knowledge > 0.9) mastery = Math.min(0.9, mastery + 0.0006);
+        if (!enlightened && engaged && knowledge > 0.985) {
+          enlightened = true;
+          mastery = 0.96;
+          root.classList.add('known');
+        }
+        activity *= 0.9;
+
+        // Resolve / re-scramble each slot (hysteresis stops boundary flicker).
+        for (let i = 0; i < slots.length; i++) {
+          const s = slots[i];
+          const t = s.on ? s.t - 0.03 : s.t;
+          s.on = knowledge >= t;
+          if (s.on) {
+            if (s.el.textContent !== s.ch) s.el.textContent = s.ch;
+            if (s.el.classList.contains('raw')) s.el.classList.remove('raw');
+          } else {
+            if ((frame & 1) === 0 && Math.random() < 0.7) s.el.textContent = scramble(s.ch);
+            if (!s.el.classList.contains('raw')) s.el.classList.add('raw');
+          }
+        }
+
+        // Giant display letter: churns fast when ignorant, settles as knowledge
+        // climbs, locks to N (nauka — knowledge) once the meaning is earned.
+        if (giant) {
+          if (enlightened) giant.textContent = 'N';
+          else {
+            const every = Math.max(1, Math.round(2 + knowledge * 12));
+            if (frame % every === 0) giant.textContent = pick(UP);
+          }
+        }
+
+        // Meter + telemetry.
+        const kv = Math.round(knowledge * 100);
+        if (barFill) barFill.style.width = kv + '%';
+        if (meterVal) meterVal.textContent = pad(kv, 3);
+        if (tSig) tSig.textContent = pad(kv, 3);
+        if (tEnt) tEnt.textContent = pad(100 - kv, 3);
+        root.style.setProperty('--noise', (0.08 + (1 - knowledge) * 0.24).toFixed(3));
+
+        // Odometers count the cost of effort; the clock drifts with activity.
+        odo0 = (odo0 + Math.floor(activity * 900 + (holding ? 40 : 0) + 2)) % 1e8;
+        odo1 = (odo1 + Math.floor(activity * 370 + 1)) % 1e8;
+        if (frame % 2 === 0) {
+          const a = pad(odo0, 8);
+          const b = pad(odo1, 8);
+          for (let i = 0; i < 8; i++) {
+            if (odoDigits[0] && odoDigits[0][i]) odoDigits[0][i].textContent = a[i];
+            if (odoDigits[1] && odoDigits[1][i]) odoDigits[1][i].textContent = b[i];
+          }
+        }
+        if (clock && frame % 3 === 0) {
+          const h = Math.floor(now / 24 + activity * 4096) & 0xffffff;
+          clock.textContent = '0x' + h.toString(16).toUpperCase().padStart(6, '0');
+        }
+
+        // A ticker mutation in the drifting field — the noise never rests.
+        if (frame % 9 === 0) {
+          const lines = root.querySelectorAll('.row');
+          const el = lines[(Math.random() * lines.length) | 0];
+          if (el) {
+            const n = jsNoise(90);
+            el.textContent = n + n;
+          }
+        }
+
+        if (hint) hint.classList.toggle('done', engaged && knowledge > 0.85);
+
+        requestAnimationFrame(loop);
+      };
+
+      const begin = () => {
+        introEnd = performance.now() + 1700;
+        requestAnimationFrame(loop);
+      };
+      // Background tabs throttle timers — hold the opening beat until visible so
+      // the intro always plays from the top.
+      if (document.hidden) {
+        document.addEventListener('visibilitychange', function onVis() {
+          if (document.hidden) return;
+          document.removeEventListener('visibilitychange', onVis);
+          begin();
+        });
+      } else {
+        begin();
+      }
+    })();
+  </script>
+</ExperienceFrame>
+
+<style>
+  /* ── palette: the site's own two-tone brutalism, owned locally so the theme
+        toggle can flip it without touching the rest of the app ───────────── */
+  .env {
+    --paper: #0f0f0f;
+    --ink: #ede4dd;
+    --accent: #ff5000;
+    --line: color-mix(in srgb, var(--ink) 22%, transparent);
+    --noise: 0.18;
+
+    position: relative;
+    min-height: 100dvh;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: clamp(0.5rem, 2vh, 1.3rem);
+    padding: clamp(0.9rem, 3.5vw, 2.2rem);
+    padding-bottom: clamp(3rem, 8vh, 4.4rem); /* clear the frame's fixed Back link */
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-mono);
+    overflow: hidden;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .env[data-mode='light'] {
+    --paper: #ede4dd;
+    --ink: #1a1a1a;
+  }
+  /* Faint brutalist dot-grid, like graph paper under the readout. */
+  .env::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background-image: radial-gradient(currentColor 0.5px, transparent 0.6px);
+    background-size: 22px 22px;
+    color: var(--ink);
+    opacity: 0.07;
+    pointer-events: none;
+  }
+
+  /* ── HUD chrome ─────────────────────────────────────────────────────── */
+  .hud,
+  .hud-b {
+    position: relative;
+    z-index: 3;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.6rem 1rem;
+    font-size: clamp(0.56rem, 2.3vw, 0.76rem);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+  .hud {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 0.55rem;
+  }
+  .hud-b {
+    flex-wrap: wrap;
+    align-items: flex-end;
+    border-top: 1px solid var(--line);
+    padding-top: 0.55rem;
+  }
+  .hud-c {
+    opacity: 0.7;
+  }
+  @media (max-width: 560px) {
+    .hud-c {
+      display: none;
+    }
+  }
+  .hud-r {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.8rem;
+  }
+  .clock {
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  .mode {
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    color: var(--ink);
+    background: none;
+    border: 1px solid var(--line);
+    padding: 0.15em 0.5em;
+    cursor: inherit;
+    pointer-events: auto;
+  }
+  .mode:hover {
+    border-color: var(--ink);
+  }
+
+  /* ── core stage ─────────────────────────────────────────────────────── */
+  .core {
+    position: relative;
+    display: grid;
+    place-items: center;
+    z-index: 1;
+  }
+  .field {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    opacity: var(--noise);
+    color: var(--ink);
+    font-size: clamp(0.72rem, 2.7vw, 1.05rem);
+    line-height: 1.7;
+    letter-spacing: 0.08em;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+  .line {
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .row {
+    display: inline-block;
+    will-change: transform;
+  }
+  .row.a {
+    animation: driftA var(--d, 28s) linear infinite;
+  }
+  .row.b {
+    animation: driftB var(--d, 28s) linear infinite;
+  }
+  @keyframes driftA {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+  @keyframes driftB {
+    from {
+      transform: translateX(-50%);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+
+  .giant {
+    position: absolute;
+    left: -0.06em;
+    bottom: -0.16em;
+    z-index: 1;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: clamp(9rem, 42vw, 24rem);
+    line-height: 0.7;
+    color: var(--ink);
+    opacity: 0.1;
+    pointer-events: none;
+    transition: color 0.4s ease, opacity 0.4s ease;
+  }
+  .env.known .giant {
+    color: var(--accent);
+    opacity: 0.16;
+  }
+
+  /* ── the decoding words (the payload) ───────────────────────────────── */
+  .decode {
+    position: relative;
+    z-index: 2;
+    width: min(100%, 40ch);
+    padding: clamp(1rem, 4vw, 2rem) clamp(1rem, 4.5vw, 2.4rem);
+    background: color-mix(in srgb, var(--paper) 80%, transparent);
+    border: 1px solid var(--line);
+    backdrop-filter: blur(2px);
+    text-align: center;
+  }
+  /* Corner ticks — brutalist framing. */
+  .decode::before,
+  .decode::after {
+    content: '';
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border: solid var(--ink);
+    opacity: 0.5;
+  }
+  .decode::before {
+    top: -1px;
+    left: -1px;
+    border-width: 1px 0 0 1px;
+  }
+  .decode::after {
+    bottom: -1px;
+    right: -1px;
+    border-width: 0 1px 1px 0;
+  }
+
+  .truth {
+    margin: 0;
+  }
+  .cro {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-weight: 600;
+    font-size: clamp(1.5rem, 8.5vw, 3.4rem);
+    line-height: 1.05;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    word-break: break-word;
+  }
+  .gloss {
+    margin: 1.4rem 0 0;
+    font-family: var(--font-mono);
+    font-size: clamp(0.62rem, 3vw, 0.92rem);
+    line-height: 1.5;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    word-break: break-word;
+  }
+  .gloss-tag {
+    color: var(--accent);
+    margin-right: 0.5em;
+    opacity: 0.85;
+  }
+  /* Resting state (no JS / reduced motion) is the RESOLVED word: solid ink.
+     Motion adds `.raw` to letters still lost in noise — raw orange signal. */
+  .cro .g,
+  .gloss .g {
+    color: var(--ink);
+    opacity: 1;
+    transition: color 0.22s ease, opacity 0.22s ease;
+  }
+  .cro .g.raw,
+  .gloss .g.raw {
+    color: var(--accent);
+    opacity: 0.5;
+  }
+  .cro .g.sp,
+  .gloss .g.sp {
+    opacity: 1;
+  }
+  .by {
+    margin: 1.1rem 0 0;
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink);
+    opacity: 0.55;
+  }
+  .by cite {
+    font-style: normal;
+  }
+
+  .meter {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 1.5rem;
+    font-size: clamp(0.5rem, 2.2vw, 0.66rem);
+    letter-spacing: 0.16em;
+  }
+  .meter-lbl,
+  .meter-val {
+    white-space: nowrap;
+    opacity: 0.7;
+    font-variant-numeric: tabular-nums;
+  }
+  .bar {
+    position: relative;
+    flex: 1;
+    height: 0.72rem;
+    border: 1px solid var(--line);
+    background: repeating-linear-gradient(
+      90deg,
+      transparent 0 9px,
+      color-mix(in srgb, var(--ink) 14%, transparent) 9px 10px
+    );
+  }
+  .bar-fill {
+    position: absolute;
+    inset: 0;
+    width: 0%;
+    background: var(--accent);
+    transition: width 0.12s linear;
+  }
+
+  /* ── bottom HUD ─────────────────────────────────────────────────────── */
+  .tele {
+    font-variant-numeric: tabular-nums;
+    opacity: 0.7;
+  }
+  .tele b {
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .odos {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.6rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .odo .d {
+    display: inline-block;
+    width: 0.62em;
+    text-align: center;
+  }
+  .sep {
+    opacity: 0.5;
+  }
+  .hint {
+    color: var(--accent);
+    opacity: 0.9;
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  .hint.done {
+    opacity: 0;
+  }
+  @media (max-width: 560px) {
+    .tele {
+      display: none;
+    }
+    .hint {
+      order: 2;
+    }
+  }
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 0.35;
+    }
+    50% {
+      opacity: 0.95;
+    }
+  }
+</style>
