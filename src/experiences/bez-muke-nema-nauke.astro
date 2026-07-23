@@ -30,8 +30,13 @@ const { attribution } = quote.data;
 const body = (quote.body ?? '').replace(/\s+/g, ' ').trim() || 'Bez muke nema nauke.';
 const translation = 'without hardship there is no knowledge';
 
-const croChars = [...body];
 const enChars = [...translation];
+
+// The proverb laid out as a brutalist character matrix: one word per row, each
+// glyph in its own bordered cell, short rows padded with filler cells so the
+// block is a clean rectangle. The typography itself carries the grid.
+const words = body.replace(/\s+/g, ' ').trim().split(' ');
+const cols = Math.max(...words.map((w) => [...w].length));
 
 // Deterministic build-time noise so the field is stable across builds (the
 // motion is CSS drift + JS mutation at runtime, not build randomness).
@@ -46,7 +51,7 @@ function noiseRow(len: number, seed: number) {
   for (let i = 0; i < len; i++) out += NOISE[Math.floor(r() * NOISE.length)];
   return out;
 }
-const rows = Array.from({ length: 9 }, (_, i) => ({
+const rows = Array.from({ length: 22 }, (_, i) => ({
   text: noiseRow(90, 4327 + i * 131),
   dir: i % 2 === 0 ? 'a' : 'b',
   dur: (22 + ((i * 7) % 18)).toString(),
@@ -88,8 +93,31 @@ const odoB = '85043271';
       <div class="giant" aria-hidden="true"><span class="giant-ch">N</span></div>
 
       <div class="decode">
-        <blockquote class="truth" lang="hr" cite="https://en.wikipedia.org/wiki/Croatian_proverbs">
-          <p class="cro">{croChars.map((ch) => (<span class={`g${ch === ' ' ? ' sp' : ''}`} data-ch={ch}>{ch}</span>))}</p>
+        <blockquote
+          class="truth"
+          lang="hr"
+          aria-label={body}
+          cite="https://en.wikipedia.org/wiki/Croatian_proverbs"
+        >
+          <div class="matrix" style={`--cols:${cols}`} aria-hidden="true">
+            {
+              words.map((w, wi) => {
+                const chars = [...w];
+                const fill = cols - chars.length;
+                return (
+                  <>
+                    {chars.map((ch) => (
+                      <span class="cell g" data-ch={ch}>{ch}</span>
+                    ))}
+                    {Array.from({ length: fill }).map(() => (
+                      <span class="cell fill"></span>
+                    ))}
+                    {wi < words.length - 1 ? ' ' : ''}
+                  </>
+                );
+              })
+            }
+          </div>
           {attribution && (
             <footer class="by">— <cite>{attribution}</cite></footer>
           )}
@@ -156,8 +184,9 @@ const odoB = '85043271';
       if (reduce) return;
 
       // ── slots: every letter is a slot that scrambles until effort lifts
-      //    "knowledge" past its threshold. Croatian resolves first (0.06–0.72),
-      //    the English meaning last (0.80–0.96) — understanding is the reward. ─
+      //    "knowledge" past its threshold. Croatian resolves first (0.05–0.60),
+      //    the English meaning next (0.64–0.90) — understanding is the reward,
+      //    and once truly earned it LOCKS in, legible for good. ────────────────
       const UP = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
       const LO = 'abcdefghijklmnopqrstuvwxyz';
       const NU = '0123456789';
@@ -182,8 +211,8 @@ const odoB = '85043271';
           .filter(Boolean);
       };
 
-      const cro = buildSlots([...root.querySelectorAll('.cro .g')], 0.06, 0.72);
-      const en = buildSlots([...root.querySelectorAll('.gloss .g')], 0.8, 0.96);
+      const cro = buildSlots([...root.querySelectorAll('.matrix .g')], 0.05, 0.6);
+      const en = buildSlots([...root.querySelectorAll('.gloss .g')], 0.64, 0.9);
       const slots = [...cro, ...en];
 
       // Instant scramble so first paint is noise, not the resolved still.
@@ -191,6 +220,12 @@ const odoB = '85043271';
         s.el.textContent = scramble(s.ch);
         s.el.classList.add('raw');
       });
+
+      // Filler cells in the matrix churn as living noise — never a real letter,
+      // so copy/screen-reader text (via the blockquote aria-label) stays clean.
+      const fillCells = [...root.querySelectorAll('.cell.fill')];
+      const setFill = (el) => el.style.setProperty('--c', '"' + pick(UP) + '"');
+      fillCells.forEach(setFill);
 
       const giant = root.querySelector('.giant-ch');
       const barFill = root.querySelector('.bar-fill');
@@ -292,25 +327,39 @@ const odoB = '85043271';
         knowledge += (mastery - knowledge) * 0.02 - leak;
         knowledge = knowledge < 0 ? 0 : knowledge > 1 ? 1 : knowledge;
 
-        if (engaged && knowledge > 0.9) mastery = Math.min(0.9, mastery + 0.0006);
-        if (!enlightened && engaged && knowledge > 0.985) {
+        if (engaged && knowledge > 0.85) mastery = Math.min(0.9, mastery + 0.0006);
+        // Earned understanding LOCKS: reach the top through real effort and the
+        // proverb and its meaning stay resolved and legible for good.
+        if (!enlightened && engaged && knowledge > 0.94) {
           enlightened = true;
           mastery = 0.96;
           root.classList.add('known');
+          slots.forEach((s) => {
+            s.on = true;
+            s.el.textContent = s.ch;
+            s.el.classList.remove('raw');
+          });
         }
         activity *= 0.9;
 
-        // Resolve / re-scramble each slot (hysteresis stops boundary flicker).
-        for (let i = 0; i < slots.length; i++) {
-          const s = slots[i];
-          const t = s.on ? s.t - 0.03 : s.t;
-          s.on = knowledge >= t;
-          if (s.on) {
-            if (s.el.textContent !== s.ch) s.el.textContent = s.ch;
-            if (s.el.classList.contains('raw')) s.el.classList.remove('raw');
-          } else {
-            if ((frame & 1) === 0 && Math.random() < 0.7) s.el.textContent = scramble(s.ch);
-            if (!s.el.classList.contains('raw')) s.el.classList.add('raw');
+        if (!enlightened) {
+          // Resolve / re-scramble each slot (hysteresis stops boundary flicker).
+          for (let i = 0; i < slots.length; i++) {
+            const s = slots[i];
+            const t = s.on ? s.t - 0.03 : s.t;
+            s.on = knowledge >= t;
+            if (s.on) {
+              if (s.el.textContent !== s.ch) s.el.textContent = s.ch;
+              if (s.el.classList.contains('raw')) s.el.classList.remove('raw');
+            } else {
+              if ((frame & 1) === 0 && Math.random() < 0.7) s.el.textContent = scramble(s.ch);
+              if (!s.el.classList.contains('raw')) s.el.classList.add('raw');
+            }
+          }
+          // Living matrix noise in the filler cells (calms once understanding
+          // is locked in — the churn was the hardship).
+          if (frame % 3 === 0 && fillCells.length) {
+            setFill(fillCells[(Math.random() * fillCells.length) | 0]);
           }
         }
 
@@ -364,7 +413,10 @@ const odoB = '85043271';
       };
 
       const begin = () => {
-        introEnd = performance.now() + 1700;
+        // A long opening reveal: the proverb and its meaning resolve and hold
+        // long enough to be READ, then entropy reclaims them — so the meaning
+        // is understood at least once, before any effort is asked for.
+        introEnd = performance.now() + 4200;
         requestAnimationFrame(loop);
       };
       // Background tabs throttle timers — hold the opening beat until visible so
@@ -495,8 +547,7 @@ const odoB = '85043271';
     justify-content: space-between;
     opacity: var(--noise);
     color: var(--ink);
-    font-size: clamp(0.72rem, 2.7vw, 1.05rem);
-    line-height: 1.7;
+    font-size: clamp(0.6rem, 2.3vw, 0.88rem);
     letter-spacing: 0.08em;
     pointer-events: none;
     transition: opacity 0.3s ease;
@@ -504,6 +555,7 @@ const odoB = '85043271';
   .line {
     overflow: hidden;
     white-space: nowrap;
+    line-height: 1.12; /* condensed leading — a dense grid of drifting glyphs */
   }
   .row {
     display: inline-block;
@@ -586,46 +638,83 @@ const odoB = '85043271';
   .truth {
     margin: 0;
   }
-  .cro {
-    margin: 0;
+  /* ── the proverb as a brutalist character matrix ────────────────────── */
+  .matrix {
+    display: grid;
+    grid-template-columns: repeat(var(--cols, 6), 1fr);
+    width: min(100%, 24rem);
+    margin: 0 auto;
+    /* single hairlines: matrix draws top + left, each cell draws right + bottom */
+    border-top: 1px solid var(--line);
+    border-left: 1px solid var(--line);
+  }
+  .cell {
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
     font-family: var(--font-mono);
     font-weight: 600;
-    font-size: clamp(1.5rem, 8.5vw, 3.4rem);
-    line-height: 1.05;
-    letter-spacing: 0.02em;
+    font-size: clamp(1rem, 5.5vw, 2.1rem);
+    line-height: 1;
     text-transform: uppercase;
-    word-break: break-word;
   }
+  /* Resting state (no JS / reduced motion) is the RESOLVED word: solid ink.
+     Motion adds `.raw` to cells still lost in noise — raw orange signal. */
+  .cell.g {
+    color: var(--ink);
+    transition: color 0.22s ease, background 0.22s ease;
+  }
+  .cell.g:not(.raw) {
+    /* a resolved letter lights its cell, like a found word in the grid */
+    background: color-mix(in srgb, var(--ink) 8%, transparent);
+  }
+  .cell.g.raw {
+    color: var(--accent);
+    background: transparent;
+  }
+  .env.known .cell.g:not(.raw) {
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+  .cell.fill {
+    color: color-mix(in srgb, var(--ink) 26%, transparent);
+  }
+  .cell.fill::before {
+    content: var(--c, '·');
+  }
+
   .gloss {
-    margin: 1.4rem 0 0;
+    margin: 1.5rem 0 0;
     font-family: var(--font-mono);
     font-size: clamp(0.62rem, 3vw, 0.92rem);
-    line-height: 1.5;
+    line-height: 1.6;
     letter-spacing: 0.14em;
     text-transform: uppercase;
     word-break: break-word;
+    transition: border-color 0.3s ease, padding 0.3s ease;
   }
   .gloss-tag {
     color: var(--accent);
     margin-right: 0.5em;
     opacity: 0.85;
   }
-  /* Resting state (no JS / reduced motion) is the RESOLVED word: solid ink.
-     Motion adds `.raw` to letters still lost in noise — raw orange signal. */
-  .cro .g,
   .gloss .g {
     color: var(--ink);
     opacity: 1;
     transition: color 0.22s ease, opacity 0.22s ease;
   }
-  .cro .g.raw,
   .gloss .g.raw {
     color: var(--accent);
     opacity: 0.5;
   }
-  .cro .g.sp,
   .gloss .g.sp {
     opacity: 1;
+  }
+  /* Once the meaning is earned, present it plainly as the definition. */
+  .env.known .gloss {
+    border-top: 1px solid var(--line);
+    padding-top: 1.1rem;
   }
   .by {
     margin: 1.1rem 0 0;
