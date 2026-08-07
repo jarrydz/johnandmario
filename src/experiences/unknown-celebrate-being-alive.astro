@@ -5,16 +5,18 @@ import ExperienceFrame from '../layouts/ExperienceFrame.astro';
 /**
  * "The more you celebrate being alive, the more life gives you to celebrate." — Unknown
  *
- * An ASCII flower on the dark house palette (#1a1a1a, cream ink). It doesn't
- * decorate the quote — it enacts it: a seed on bare ground grows a stem and
- * then blooms, a shaded radial flower assembled entirely from typed characters.
- * Once open it never closes; it keeps celebrating — swaying gently and throwing
- * off little sparks of light that keep coming, the way the line promises.
+ * An ASCII garden on the dark house palette (#1a1a1a, cream ink). It doesn't
+ * decorate the quote — it enacts it: bare ground grows a hero flower and, around
+ * it, a small living crop — two smaller blooms, a bud, tufts of grass. Once open
+ * nothing closes; the whole patch keeps celebrating — swaying, and the hero
+ * throwing off little sparks of light that keep coming, the way the line promises.
  *
- * Legibility floor (ADR 0015): the flower is aria-hidden art rendered into a
- * <pre>; the quote itself is real, selectable text in the <blockquote>. The
- * <pre> ships pre-filled with the fully-bloomed still, so the flower is there
- * with no JavaScript, and the reduced-motion path simply keeps that still.
+ * Legibility floor (ADR 0015): the garden is aria-hidden art rendered into a
+ * <pre>; the quote itself is real, selectable text in the <blockquote> (set here
+ * in the same monospace as the art). The <pre> ships pre-filled with the fully
+ * grown still, so the garden is there with no JavaScript, and the reduced-motion
+ * path simply keeps that still. Attribution is intentionally not shown on this
+ * page (it still rides with the quote on /read).
  */
 
 interface Props {
@@ -22,60 +24,133 @@ interface Props {
 }
 
 const { quote } = Astro.props;
-const { attribution } = quote.data;
 const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
 
-// The fully-bloomed still: the reduced-motion / no-JS state, and the frame the
-// animation grows toward. Kept byte-for-byte in sync with the renderer below.
+// The fully-grown still: the reduced-motion / no-JS state, and the frame the
+// animation grows toward. Kept in sync with the renderer below (one backslash
+// in the hero leaves is escaped for the string literal).
 const still = [
-  '            .       .       .',
-  '             .:     :     :.',
-  '              ::    :    ::',
-  '       ..      ++   +   ++      ..',
-  '         .::    **  *  **    ::.',
-  '            ++*   # # #   *++',
-  '               *###.@.###*',
-  '     ...:::++**###(@@@)###**++:::...',
-  '               *####@####*',
-  '            ++*   #|# #   *++',
-  '         .::    ** |*  **    ::.',
-  '       ..      ++  |+   ++      ..',
-  '              ::   |:    ::',
-  '             .:    |:     :.',
-  '            .      |.       .',
-  '                  , . ,',
-  '                 __\\ /__',
-  '                     |',
-  '                     |',
-  '                     |',
-  '                     |',
-  '                     |',
-  '                    |',
-  '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~',
+  '',
+  '                            .',
+  '                     ..     .     ..',
+  '                      ::    :    ::',
+  '                .      ++   +   ++      .',
+  '                 .::    +*  *  *+    ::.',
+  '                    +++   # # #   +++',
+  '                       *###.@.###*',
+  '              ...::+++*###(@@@)###*+++::...',
+  '                       *####@####*',
+  '                    +++   #|# #   +++',
+  '                 .::    +* |*  *+    ::.',
+  '                .      ++  |+   ++      .   .    .',
+  '       .   .          ::   |:    ::          :  :',
+  '       .  :.         ..    |.     ..      .:  + + ::.',
+  '    ..  + + :..            |.               +*(@)*+',
+  '      +*(@)*+             , | ,           .:: + +  :.',
+  '    ..: +|+  ..          __\\ /__              :  : +*+',
+  '       .:| .                 |               .|   .|',
+  '       . | .                 |                 |    |',
+  '          |                  |                 |    |',
+  '          |        ,         |    ,             |   |   ,',
+  '    ,     |        |     ,   |   |         ,    |   |  |',
+  '    |     |       |     |   |    |       |      |    | |',
+  '~~~~.~~~~~~~~~~~~~~,~~~~~~~~~~~~~~`~~~~~~~~~~~~~~.~~~~~~~',
 ].join('\n');
 ---
 
 <ExperienceFrame quote={quote} backdrop="#1a1a1a">
   <main class="garden">
-    <pre class="flower" aria-hidden="true">{still}</pre>
+    <pre class="scene" aria-hidden="true">{still}</pre>
     <blockquote class="words">
       <p>{body}</p>
-      {attribution && <footer>— <cite>{attribution}</cite></footer>}
     </blockquote>
   </main>
 </ExperienceFrame>
 
 <script>
-  const pre = document.querySelector('.flower') as HTMLPreElement | null;
+  const pre = document.querySelector('.scene') as HTMLPreElement | null;
   if (pre && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     // ---- the character canvas --------------------------------------------
-    const COLS = 41;
-    const ROWS = 25;
-    const CX = 20; // centre column
-    const HEAD = 7; // flower-head row
+    const COLS = 57;
+    const ROWS = 26;
     const GROUND = ROWS - 2;
     const XS = 1.9; // horizontal stretch — a char cell is taller than it is wide
-    const RAMP = ['@', '#', '*', '+', ':', '.']; // dense core → airy petal tip
+    const HERO_RAMP = ['@', '#', '*', '+', ':', '.']; // dense core → airy tip
+    const SMALL_RAMP = ['#', '*', '+', ':', '.'];
+
+    type Grid = string[][];
+    const mkGrid = (): Grid => Array.from({ length: ROWS }, () => Array(COLS).fill(' '));
+    const plotter = (grid: Grid) => (c: number, r: number, ch: string) => {
+      c = Math.round(c);
+      r = Math.round(r);
+      if (c >= 0 && c < COLS && r >= 0 && r < ROWS) grid[r][c] = ch;
+    };
+    type Plot = ReturnType<typeof plotter>;
+
+    const drawStem = (plot: Plot, baseCol: number, topRow: number, grow: number, phase: number, amp: number) => {
+      const stemBottom = GROUND - 1;
+      const curTop = Math.round(stemBottom - (stemBottom - topRow) * grow);
+      for (let r = stemBottom; r >= curTop; r--) {
+        const wave = Math.round(Math.sin((stemBottom - r) * 0.45 + phase) * amp);
+        plot(baseCol + wave, r, '|');
+      }
+      return stemBottom;
+    };
+
+    const drawLeaves = (plot: Plot, baseCol: number, midRow: number) => {
+      plot(baseCol - 1, midRow, '\\'); plot(baseCol - 2, midRow, '_'); plot(baseCol - 3, midRow, '_'); plot(baseCol - 2, midRow - 1, ',');
+      plot(baseCol + 1, midRow, '/'); plot(baseCol + 2, midRow, '_'); plot(baseCol + 3, midRow, '_'); plot(baseCol + 2, midRow - 1, ',');
+    };
+
+    const drawBloom = (
+      plot: Plot, cx: number, head: number, bloom: number,
+      np: number, maxR: number, sway: number, ramp: string[], hero: boolean,
+    ) => {
+      if (bloom <= 0) return;
+      const R = 1 + bloom * (maxR - 1);
+      for (let i = 0; i < np; i++) {
+        const a = (i / np) * Math.PI * 2 + sway;
+        for (let rr = hero ? 1.4 : 1.0; rr <= R; rr += 0.5) {
+          const c = cx + Math.cos(a) * rr * XS;
+          const rw = head + Math.sin(a) * rr;
+          const frac = rr / R;
+          plot(c, rw, ramp[Math.min(ramp.length - 1, Math.floor(frac * ramp.length))]);
+        }
+      }
+      if (hero) {
+        plot(cx, head, '@');
+        plot(cx - 1, head, '@'); plot(cx + 1, head, '@');
+        plot(cx - 2, head, '('); plot(cx + 2, head, ')');
+        plot(cx, head - 1, '@'); plot(cx, head + 1, '@');
+        plot(cx - 1, head - 1, '.'); plot(cx + 1, head - 1, '.');
+      } else if (bloom > 0.4) {
+        plot(cx, head, '@');
+        plot(cx - 1, head, '('); plot(cx + 1, head, ')');
+      }
+    };
+
+    const drawGrass = (plot: Plot, col: number, t: number, h: number, phase: number) => {
+      const stemBottom = GROUND - 1;
+      for (let k = 0; k < h; k++) {
+        const r = stemBottom - k;
+        const s = Math.sin(t * 0.0012 + phase);
+        const lean = Math.round(s * (k / Math.max(1, h - 1)) * 1.6);
+        plot(col + lean, r, k === h - 1 ? (s >= 0 ? ',' : '.') : '|');
+      }
+    };
+
+    const drawBud = (plot: Plot, col: number, head: number, open: number, grow: number) => {
+      drawStem(plot, col, head + 1, grow, 2.0, 0.6);
+      if (open <= 0) return;
+      if (open < 0.5) {
+        plot(col, head, 'o');
+        plot(col, head - 1, '.');
+      } else {
+        plot(col, head, '*');
+        plot(col - 1, head, '+'); plot(col + 1, head, '+');
+        plot(col, head - 1, '.');
+      }
+    };
 
     interface Spark {
       c: number;
@@ -85,54 +160,46 @@ const still = [
     }
     const SPARK_CHARS = ['.', '+', '*', '+', '.'];
 
-    const render = (bloom: number, stemGrow: number, t: number, sparks: Spark[], now: number) => {
-      const grid: string[][] = Array.from({ length: ROWS }, () => Array(COLS).fill(' '));
-      const plot = (c: number, r: number, ch: string) => {
-        c = Math.round(c);
-        r = Math.round(r);
-        if (c >= 0 && c < COLS && r >= 0 && r < ROWS) grid[r][c] = ch;
-      };
+    interface Frame {
+      stemGrow: number;
+      heroBloom: number;
+      leftBloom: number;
+      rightBloom: number;
+      budOpen: number;
+    }
+    const HERO = { cx: 28, head: 8 };
+    const LEFT = { cx: 9, head: 16 };
+    const RIGHT = { cx: 47, head: 15 };
 
-      // Bare ground.
+    const render = (t: number, f: Frame, sparks: Spark[], now: number) => {
+      const grid = mkGrid();
+      const plot = plotter(grid);
+
+      // Bare ground with a few pebbles / tufts.
       for (let c = 0; c < COLS; c++) grid[GROUND][c] = '~';
+      ['.', ',', '`', '.'].forEach((ch, i) => plot(4 + i * 15, GROUND, ch));
 
-      // Stem, growing up from the soil with a gentle wave.
-      const stemBottom = GROUND - 1;
-      const stemTop = HEAD + 1;
-      const curTop = Math.round(stemBottom - (stemBottom - stemTop) * stemGrow);
-      for (let r = stemBottom; r >= curTop; r--) {
-        const wave = Math.round(Math.sin((stemBottom - r) * 0.45) * 1.2);
-        plot(CX + wave, r, '|');
-      }
-      // A leaf either side, once the stem is up.
-      if (stemGrow > 0.55) {
-        const lr = Math.round((stemBottom + stemTop) / 2) + 1;
-        plot(CX - 1, lr, '\\'); plot(CX - 2, lr, '_'); plot(CX - 3, lr, '_'); plot(CX - 2, lr - 1, ',');
-        plot(CX + 1, lr, '/'); plot(CX + 2, lr, '_'); plot(CX + 3, lr, '_'); plot(CX + 2, lr - 1, ',');
-      }
+      // Swaying grass.
+      drawGrass(plot, 4, t, 2, 0.0);
+      drawGrass(plot, 18, t, 3, 1.2);
+      drawGrass(plot, 24, t, 2, 2.1);
+      drawGrass(plot, 33, t, 3, 0.6);
+      drawGrass(plot, 41, t, 2, 1.7);
+      drawGrass(plot, 55, t, 3, 2.6);
 
-      // The bloom: petals unfurl outward, shaded from dense core to airy tip.
-      if (bloom > 0) {
-        const NP = 12;
-        const R = 2 + bloom * 6;
-        const sway = Math.sin(t * 0.0016) * 0.35;
-        for (let i = 0; i < NP; i++) {
-          const a = (i / NP) * Math.PI * 2 + sway;
-          for (let rr = 1.4; rr <= R; rr += 0.5) {
-            const c = CX + Math.cos(a) * rr * XS;
-            const rw = HEAD + Math.sin(a) * rr;
-            const frac = rr / R;
-            plot(c, rw, RAMP[Math.min(RAMP.length - 1, Math.floor(frac * RAMP.length))]);
-          }
-        }
-        plot(CX, HEAD, '@');
-        plot(CX - 1, HEAD, '@'); plot(CX + 1, HEAD, '@');
-        plot(CX - 2, HEAD, '('); plot(CX + 2, HEAD, ')');
-        plot(CX, HEAD - 1, '@'); plot(CX, HEAD + 1, '@');
-        plot(CX - 1, HEAD - 1, '.'); plot(CX + 1, HEAD - 1, '.');
-      }
+      // Companions: two smaller blooms and a bud.
+      drawStem(plot, LEFT.cx, LEFT.head + 1, f.stemGrow, 0.8, 0.9);
+      drawBloom(plot, LEFT.cx, LEFT.head, f.leftBloom, 8, 3.0, Math.sin(t * 0.0018 + 1) * 0.4, SMALL_RAMP, false);
+      drawStem(plot, RIGHT.cx, RIGHT.head + 1, f.stemGrow, 1.6, 0.9);
+      drawBloom(plot, RIGHT.cx, RIGHT.head, f.rightBloom, 8, 3.2, Math.sin(t * 0.0018 + 2.3) * 0.4, SMALL_RAMP, false);
+      drawBud(plot, 52, 17, f.budOpen, f.stemGrow);
 
-      // Celebration: sparks of light that twinkle around the open flower.
+      // Hero flower — centre, big, the star of the patch.
+      const stemBottom = drawStem(plot, HERO.cx, HERO.head + 1, f.stemGrow, 0, 1.2);
+      if (f.stemGrow > 0.55) drawLeaves(plot, HERO.cx, Math.round((stemBottom + HERO.head + 1) / 2) + 1);
+      drawBloom(plot, HERO.cx, HERO.head, f.heroBloom, 12, 7.5, Math.sin(t * 0.0016) * 0.35, HERO_RAMP, true);
+
+      // Celebration: sparks of light twinkling around the open blooms.
       for (const s of sparks) {
         const frac = (now - s.born) / s.life;
         plot(s.c, s.r, SPARK_CHARS[Math.min(SPARK_CHARS.length - 1, Math.floor(frac * SPARK_CHARS.length))]);
@@ -142,16 +209,21 @@ const still = [
     };
 
     // ---- timeline ---------------------------------------------------------
-    const STEM_MS = 1300;
-    const BLOOM_START = 1000;
-    const BLOOM_MS = 2400;
-    const BLOOM_DONE = BLOOM_START + BLOOM_MS;
     const easeOut = (x: number) => 1 - Math.pow(1 - x, 3);
     const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
+    const HERO_DONE = 900 + 2400;
+
+    // Spark sources, weighted toward the hero.
+    const SOURCES = [
+      { cx: HERO.cx, head: HERO.head, rmin: 7, rmax: 12 },
+      { cx: HERO.cx, head: HERO.head, rmin: 7, rmax: 12 },
+      { cx: LEFT.cx, head: LEFT.head, rmin: 3, rmax: 5 },
+      { cx: RIGHT.cx, head: RIGHT.head, rmin: 3, rmax: 5 },
+    ];
 
     const start = performance.now();
     const sparks: Spark[] = [];
-    let nextSpark = BLOOM_DONE + 300;
+    let nextSpark = HERO_DONE + 300;
     let lastDraw = 0;
 
     const frame = (now: number) => {
@@ -159,31 +231,37 @@ const still = [
       if (now - lastDraw >= 55) {
         lastDraw = now;
         const t = now - start;
-        const stemGrow = easeOut(clamp01(t / STEM_MS));
-        const bloom = easeOut(clamp01((t - BLOOM_START) / BLOOM_MS));
+        const f: Frame = {
+          stemGrow: easeOut(clamp01(t / 1300)),
+          heroBloom: easeOut(clamp01((t - 900) / 2400)),
+          leftBloom: easeOut(clamp01((t - 1600) / 2000)),
+          rightBloom: easeOut(clamp01((t - 2000) / 2000)),
+          budOpen: easeOut(clamp01((t - 2600) / 1800)),
+        };
 
         if (t >= nextSpark) {
+          const src = SOURCES[Math.floor(Math.random() * SOURCES.length)];
           const a = Math.random() * Math.PI * 2;
-          const rad = 7 + Math.random() * 5;
+          const rad = src.rmin + Math.random() * (src.rmax - src.rmin);
           sparks.push({
-            c: CX + Math.cos(a) * rad * XS,
-            r: HEAD + Math.sin(a) * rad,
+            c: src.cx + Math.cos(a) * rad * XS,
+            r: src.head + Math.sin(a) * rad,
             born: now,
             life: 900 + Math.random() * 900,
           });
-          if (sparks.length > 14) sparks.shift();
-          nextSpark = t + 450 + Math.random() * 500;
+          if (sparks.length > 16) sparks.shift();
+          nextSpark = t + 380 + Math.random() * 460;
         }
         for (let i = sparks.length - 1; i >= 0; i--) {
           if (now - sparks[i].born > sparks[i].life) sparks.splice(i, 1);
         }
 
-        pre.textContent = render(bloom, stemGrow, t, sparks, now);
+        pre.textContent = render(t, f, sparks, now);
       }
       requestAnimationFrame(frame);
     };
     // Begin from bare ground.
-    pre.textContent = render(0, 0, 0, [], start);
+    pre.textContent = render(0, { stemGrow: 0, heroBloom: 0, leftBloom: 0, rightBloom: 0, budOpen: 0 }, [], start);
     requestAnimationFrame(frame);
   }
 </script>
@@ -194,63 +272,55 @@ const still = [
     display: grid;
     place-content: center;
     justify-items: center;
-    gap: clamp(1.5rem, 5vh, 3rem);
-    padding: 3.5rem clamp(1.25rem, 5vw, 3rem) 5rem;
+    gap: clamp(1.25rem, 4vh, 2.25rem);
+    padding: 3.5rem clamp(1rem, 4vw, 3rem) 5rem;
     text-align: center;
     color: #ede4dd;
   }
 
-  .flower {
+  .scene {
     margin: 0;
     font-family: var(--font-mono);
-    /* 41 columns; the clamp keeps the whole plant inside any viewport. */
-    font-size: clamp(0.44rem, 2.5vw, 0.95rem);
+    /* 57 columns; the clamp keeps the whole patch inside any viewport. */
+    font-size: clamp(0.38rem, 2.15vw, 0.82rem);
     line-height: 1.04;
     letter-spacing: 0;
     white-space: pre;
     color: #f4ece3;
-    text-shadow: 0 0 14px rgba(244, 236, 227, 0.28);
+    text-shadow: 0 0 14px rgba(244, 236, 227, 0.26);
     user-select: none;
     -webkit-user-select: none;
   }
 
+  /* The quote, set in the same monospace as the garden — small and quiet. */
   .words {
     margin: 0;
-    max-width: 24ch;
-    font-family: var(--font-display);
-    font-weight: 500;
-    font-size: clamp(1.25rem, 3.6vw, 1.95rem);
-    line-height: 1.35;
+    max-width: 52ch;
+    font-family: var(--font-mono);
+    font-size: clamp(0.8rem, 1.9vw, 1rem);
+    line-height: 1.65;
+    letter-spacing: 0.01em;
+    color: #cfc7bd;
     text-wrap: balance;
   }
   .words p {
     margin: 0;
   }
-  .words footer {
-    margin-top: 1rem;
-    font-size: 0.62em;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: #8f8a83;
-  }
-  .words cite {
-    font-style: normal;
-  }
 
   @media (prefers-reduced-motion: no-preference) {
-    /* The bloom is driven by JS (guarded there too). Here: the words arrive
-       softly, and the open flower keeps a slow living glow. */
+    /* The garden grows via JS (guarded there too). Here: the words arrive
+       softly, and the patch keeps a slow living glow. */
     .words {
       animation: rise 900ms ease both;
-      animation-delay: 2600ms;
+      animation-delay: 3000ms;
     }
-    .flower {
+    .scene {
       animation: breathe 6s ease-in-out infinite;
     }
     @keyframes rise {
       from {
         opacity: 0;
-        transform: translateY(0.6rem);
+        transform: translateY(0.5rem);
       }
       to {
         opacity: 1;
@@ -260,10 +330,10 @@ const still = [
     @keyframes breathe {
       0%,
       100% {
-        text-shadow: 0 0 12px rgba(244, 236, 227, 0.22);
+        text-shadow: 0 0 12px rgba(244, 236, 227, 0.2);
       }
       50% {
-        text-shadow: 0 0 20px rgba(244, 236, 227, 0.4);
+        text-shadow: 0 0 20px rgba(244, 236, 227, 0.38);
       }
     }
   }
