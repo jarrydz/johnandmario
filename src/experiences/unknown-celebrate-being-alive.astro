@@ -1,0 +1,270 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import ExperienceFrame from '../layouts/ExperienceFrame.astro';
+
+/**
+ * "The more you celebrate being alive, the more life gives you to celebrate." — Unknown
+ *
+ * An ASCII flower on the dark house palette (#1a1a1a, cream ink). It doesn't
+ * decorate the quote — it enacts it: a seed on bare ground grows a stem and
+ * then blooms, a shaded radial flower assembled entirely from typed characters.
+ * Once open it never closes; it keeps celebrating — swaying gently and throwing
+ * off little sparks of light that keep coming, the way the line promises.
+ *
+ * Legibility floor (ADR 0015): the flower is aria-hidden art rendered into a
+ * <pre>; the quote itself is real, selectable text in the <blockquote>. The
+ * <pre> ships pre-filled with the fully-bloomed still, so the flower is there
+ * with no JavaScript, and the reduced-motion path simply keeps that still.
+ */
+
+interface Props {
+  quote: CollectionEntry<'quotes'>;
+}
+
+const { quote } = Astro.props;
+const { attribution } = quote.data;
+const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
+
+// The fully-bloomed still: the reduced-motion / no-JS state, and the frame the
+// animation grows toward. Kept byte-for-byte in sync with the renderer below.
+const still = [
+  '            .       .       .',
+  '             .:     :     :.',
+  '              ::    :    ::',
+  '       ..      ++   +   ++      ..',
+  '         .::    **  *  **    ::.',
+  '            ++*   # # #   *++',
+  '               *###.@.###*',
+  '     ...:::++**###(@@@)###**++:::...',
+  '               *####@####*',
+  '            ++*   #|# #   *++',
+  '         .::    ** |*  **    ::.',
+  '       ..      ++  |+   ++      ..',
+  '              ::   |:    ::',
+  '             .:    |:     :.',
+  '            .      |.       .',
+  '                  , . ,',
+  '                 __\\ /__',
+  '                     |',
+  '                     |',
+  '                     |',
+  '                     |',
+  '                     |',
+  '                    |',
+  '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~',
+].join('\n');
+---
+
+<ExperienceFrame quote={quote} backdrop="#1a1a1a">
+  <main class="garden">
+    <pre class="flower" aria-hidden="true">{still}</pre>
+    <blockquote class="words">
+      <p>{body}</p>
+      {attribution && <footer>— <cite>{attribution}</cite></footer>}
+    </blockquote>
+  </main>
+</ExperienceFrame>
+
+<script>
+  const pre = document.querySelector('.flower') as HTMLPreElement | null;
+  if (pre && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    // ---- the character canvas --------------------------------------------
+    const COLS = 41;
+    const ROWS = 25;
+    const CX = 20; // centre column
+    const HEAD = 7; // flower-head row
+    const GROUND = ROWS - 2;
+    const XS = 1.9; // horizontal stretch — a char cell is taller than it is wide
+    const RAMP = ['@', '#', '*', '+', ':', '.']; // dense core → airy petal tip
+
+    interface Spark {
+      c: number;
+      r: number;
+      born: number;
+      life: number;
+    }
+    const SPARK_CHARS = ['.', '+', '*', '+', '.'];
+
+    const render = (bloom: number, stemGrow: number, t: number, sparks: Spark[], now: number) => {
+      const grid: string[][] = Array.from({ length: ROWS }, () => Array(COLS).fill(' '));
+      const plot = (c: number, r: number, ch: string) => {
+        c = Math.round(c);
+        r = Math.round(r);
+        if (c >= 0 && c < COLS && r >= 0 && r < ROWS) grid[r][c] = ch;
+      };
+
+      // Bare ground.
+      for (let c = 0; c < COLS; c++) grid[GROUND][c] = '~';
+
+      // Stem, growing up from the soil with a gentle wave.
+      const stemBottom = GROUND - 1;
+      const stemTop = HEAD + 1;
+      const curTop = Math.round(stemBottom - (stemBottom - stemTop) * stemGrow);
+      for (let r = stemBottom; r >= curTop; r--) {
+        const wave = Math.round(Math.sin((stemBottom - r) * 0.45) * 1.2);
+        plot(CX + wave, r, '|');
+      }
+      // A leaf either side, once the stem is up.
+      if (stemGrow > 0.55) {
+        const lr = Math.round((stemBottom + stemTop) / 2) + 1;
+        plot(CX - 1, lr, '\\'); plot(CX - 2, lr, '_'); plot(CX - 3, lr, '_'); plot(CX - 2, lr - 1, ',');
+        plot(CX + 1, lr, '/'); plot(CX + 2, lr, '_'); plot(CX + 3, lr, '_'); plot(CX + 2, lr - 1, ',');
+      }
+
+      // The bloom: petals unfurl outward, shaded from dense core to airy tip.
+      if (bloom > 0) {
+        const NP = 12;
+        const R = 2 + bloom * 6;
+        const sway = Math.sin(t * 0.0016) * 0.35;
+        for (let i = 0; i < NP; i++) {
+          const a = (i / NP) * Math.PI * 2 + sway;
+          for (let rr = 1.4; rr <= R; rr += 0.5) {
+            const c = CX + Math.cos(a) * rr * XS;
+            const rw = HEAD + Math.sin(a) * rr;
+            const frac = rr / R;
+            plot(c, rw, RAMP[Math.min(RAMP.length - 1, Math.floor(frac * RAMP.length))]);
+          }
+        }
+        plot(CX, HEAD, '@');
+        plot(CX - 1, HEAD, '@'); plot(CX + 1, HEAD, '@');
+        plot(CX - 2, HEAD, '('); plot(CX + 2, HEAD, ')');
+        plot(CX, HEAD - 1, '@'); plot(CX, HEAD + 1, '@');
+        plot(CX - 1, HEAD - 1, '.'); plot(CX + 1, HEAD - 1, '.');
+      }
+
+      // Celebration: sparks of light that twinkle around the open flower.
+      for (const s of sparks) {
+        const frac = (now - s.born) / s.life;
+        plot(s.c, s.r, SPARK_CHARS[Math.min(SPARK_CHARS.length - 1, Math.floor(frac * SPARK_CHARS.length))]);
+      }
+
+      return grid.map((row) => row.join('').replace(/\s+$/, '')).join('\n');
+    };
+
+    // ---- timeline ---------------------------------------------------------
+    const STEM_MS = 1300;
+    const BLOOM_START = 1000;
+    const BLOOM_MS = 2400;
+    const BLOOM_DONE = BLOOM_START + BLOOM_MS;
+    const easeOut = (x: number) => 1 - Math.pow(1 - x, 3);
+    const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
+
+    const start = performance.now();
+    const sparks: Spark[] = [];
+    let nextSpark = BLOOM_DONE + 300;
+    let lastDraw = 0;
+
+    const frame = (now: number) => {
+      // ~18fps — a deliberately hand-drawn, flip-book cadence.
+      if (now - lastDraw >= 55) {
+        lastDraw = now;
+        const t = now - start;
+        const stemGrow = easeOut(clamp01(t / STEM_MS));
+        const bloom = easeOut(clamp01((t - BLOOM_START) / BLOOM_MS));
+
+        if (t >= nextSpark) {
+          const a = Math.random() * Math.PI * 2;
+          const rad = 7 + Math.random() * 5;
+          sparks.push({
+            c: CX + Math.cos(a) * rad * XS,
+            r: HEAD + Math.sin(a) * rad,
+            born: now,
+            life: 900 + Math.random() * 900,
+          });
+          if (sparks.length > 14) sparks.shift();
+          nextSpark = t + 450 + Math.random() * 500;
+        }
+        for (let i = sparks.length - 1; i >= 0; i--) {
+          if (now - sparks[i].born > sparks[i].life) sparks.splice(i, 1);
+        }
+
+        pre.textContent = render(bloom, stemGrow, t, sparks, now);
+      }
+      requestAnimationFrame(frame);
+    };
+    // Begin from bare ground.
+    pre.textContent = render(0, 0, 0, [], start);
+    requestAnimationFrame(frame);
+  }
+</script>
+
+<style>
+  .garden {
+    min-height: 100dvh;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: clamp(1.5rem, 5vh, 3rem);
+    padding: 3.5rem clamp(1.25rem, 5vw, 3rem) 5rem;
+    text-align: center;
+    color: #ede4dd;
+  }
+
+  .flower {
+    margin: 0;
+    font-family: var(--font-mono);
+    /* 41 columns; the clamp keeps the whole plant inside any viewport. */
+    font-size: clamp(0.44rem, 2.5vw, 0.95rem);
+    line-height: 1.04;
+    letter-spacing: 0;
+    white-space: pre;
+    color: #f4ece3;
+    text-shadow: 0 0 14px rgba(244, 236, 227, 0.28);
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .words {
+    margin: 0;
+    max-width: 24ch;
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: clamp(1.25rem, 3.6vw, 1.95rem);
+    line-height: 1.35;
+    text-wrap: balance;
+  }
+  .words p {
+    margin: 0;
+  }
+  .words footer {
+    margin-top: 1rem;
+    font-size: 0.62em;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #8f8a83;
+  }
+  .words cite {
+    font-style: normal;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    /* The bloom is driven by JS (guarded there too). Here: the words arrive
+       softly, and the open flower keeps a slow living glow. */
+    .words {
+      animation: rise 900ms ease both;
+      animation-delay: 2600ms;
+    }
+    .flower {
+      animation: breathe 6s ease-in-out infinite;
+    }
+    @keyframes rise {
+      from {
+        opacity: 0;
+        transform: translateY(0.6rem);
+      }
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
+    @keyframes breathe {
+      0%,
+      100% {
+        text-shadow: 0 0 12px rgba(244, 236, 227, 0.22);
+      }
+      50% {
+        text-shadow: 0 0 20px rgba(244, 236, 227, 0.4);
+      }
+    }
+  }
+</style>
