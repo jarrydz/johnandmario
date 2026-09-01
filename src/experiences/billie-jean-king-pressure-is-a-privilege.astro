@@ -125,7 +125,7 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
         const inset = Math.max(26, H * 0.06);
         state.yourY = H - inset;
         state.rivalY = inset;
-        state.baseSpeed = Math.min(W, H) * 1.15;
+        state.baseSpeed = Math.min(W, H) * 1.0;
         state.maxSpeed = state.baseSpeed * 2.4;
         if (state.mode === 'ready' || state.mode === 'over') {
           state.yourX = W / 2;
@@ -287,14 +287,19 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
         }
         if (state.mode !== 'playing') return;
 
-        // Rival AI: chase the ball's x with a capped speed, plus a little error
-        // so a determined player can pull it out of position.
-        const aiMax = state.speed * 0.66;
-        const err = Math.sin(performance.now() * 0.004) * state.pw * 0.5;
-        const desired = state.bx + err;
-        const dx = desired - state.rivalX;
-        const move = Math.max(-aiMax * dt, Math.min(aiMax * dt, dx));
-        state.rivalX += move;
+        // Rival AI — beatable by design. It only commits to the ball once the
+        // ball is heading its way; otherwise it drifts back toward centre. Its
+        // top speed is capped well under the ball's, so a sharp cross-court
+        // return (lots of horizontal pace) can pull it out of the point.
+        if (state.bvy < 0) {
+          const aiMax = state.speed * 0.5;
+          const err = Math.sin(performance.now() * 0.0031) * state.pw * 0.8;
+          const desired = state.bx + err;
+          const dx = desired - state.rivalX;
+          state.rivalX += Math.max(-aiMax * dt, Math.min(aiMax * dt, dx));
+        } else {
+          state.rivalX += (W / 2 - state.rivalX) * Math.min(1, dt * 3);
+        }
         state.rivalX = Math.max(state.pw, Math.min(W - state.pw, state.rivalX));
 
         // Advance the ball.
