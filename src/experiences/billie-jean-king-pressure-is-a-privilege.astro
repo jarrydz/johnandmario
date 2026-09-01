@@ -1,0 +1,607 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import ExperienceFrame from '../layouts/ExperienceFrame.astro';
+
+/**
+ * "Pressure is a privilege." — Billie Jean King
+ *
+ * A playable game of tennis. Not a decoration of the line — an enactment of
+ * it: a one-wall Pong rally against a relentless rival, where every ball you
+ * return winds the rally tighter and the ball faster. The pressure only ever
+ * mounts, and the game IS the reward for staying in the point — the privilege
+ * King names. Built to be played on a phone first: drag your thumb anywhere on
+ * the court to move the racket; a hardware keyboard (arrows / A–D) works too.
+ *
+ * Legibility floor (ADR 0015): the quote and attribution are real, selectable
+ * DOM text on the serve/result card, which is the page's resting state. Under
+ * prefers-reduced-motion (and with no JS) the card stays put over a still
+ * court and the game never starts — the resting styles ARE the reduced-motion
+ * still. All motion lives behind the no-preference gate in the script.
+ */
+
+interface Props {
+  quote: CollectionEntry<'quotes'>;
+}
+
+const { quote } = Astro.props;
+const { attribution } = quote.data;
+const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
+---
+
+<ExperienceFrame quote={quote} backdrop="#0a2731">
+  <main class="court" data-tennis>
+    <canvas class="field" aria-hidden="true"></canvas>
+
+    <div class="hud" aria-hidden="true">
+      <span class="score score--rival"><b data-rival-score>0</b><small>BJK</small></span>
+      <span class="score score--you"><b data-your-score>0</b><small>YOU</small></span>
+    </div>
+
+    <!-- Resting state / reduced-motion still: the quote as real text. -->
+    <div class="card" data-card>
+      <blockquote class="quote">
+        <p>{body}</p>
+        {attribution && <footer>— <cite>{attribution}</cite></footer>}
+      </blockquote>
+      <p class="prompt" data-prompt>Tap the court to serve</p>
+      <p class="hint" data-hint>Drag to move your racket · first to 7</p>
+    </div>
+  </main>
+
+  <script>
+    const root = document.querySelector('[data-tennis]') as HTMLElement | null;
+    if (root) {
+      const canvas = root.querySelector('.field') as HTMLCanvasElement;
+      const ctx = canvas.getContext('2d')!;
+      const card = root.querySelector('[data-card]') as HTMLElement;
+      const promptEl = root.querySelector('[data-prompt]') as HTMLElement;
+      const hintEl = root.querySelector('[data-hint]') as HTMLElement;
+      const yourScoreEl = root.querySelector('[data-your-score]') as HTMLElement;
+      const rivalScoreEl = root.querySelector('[data-rival-score]') as HTMLElement;
+
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const WIN = 7;
+
+      // --- geometry, kept in CSS pixels; the canvas backing store is dpr-scaled.
+      let W = 0;
+      let H = 0;
+      let dpr = 1;
+
+      const palette = {
+        bg0: '#0d3441',
+        bg1: '#072027',
+        line: 'rgba(233, 240, 233, 0.55)',
+        net: 'rgba(233, 240, 233, 0.35)',
+        you: '#e9f0e9',
+        rival: '#6fd3c6',
+        ball: '#dcff4f',
+      };
+
+      const state = {
+        mode: 'ready' as 'ready' | 'playing' | 'serving' | 'over',
+        you: 0,
+        rival: 0,
+        rally: 0,
+        speed: 0,
+        baseSpeed: 0,
+        maxSpeed: 0,
+        // paddles
+        yourX: 0,
+        rivalX: 0,
+        rivalVX: 0,
+        pw: 0, // paddle half-width
+        pth: 0, // paddle thickness
+        yourY: 0,
+        rivalY: 0,
+        targetX: 0,
+        // ball
+        bx: 0,
+        by: 0,
+        bvx: 0,
+        bvy: 0,
+        br: 0,
+        // presentation
+        trail: [] as { x: number; y: number }[],
+        shakeT: 0,
+        serveTimer: 0,
+        servingTo: 1, // +1 toward you, -1 toward rival
+        winner: '' as '' | 'you' | 'rival',
+      };
+
+      function resize() {
+        const rect = root!.getBoundingClientRect();
+        W = Math.max(240, rect.width);
+        H = Math.max(320, rect.height);
+        dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+        canvas.width = Math.round(W * dpr);
+        canvas.height = Math.round(H * dpr);
+        canvas.style.width = W + 'px';
+        canvas.style.height = H + 'px';
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        state.pw = Math.max(34, W * 0.13);
+        state.pth = Math.max(10, Math.min(16, H * 0.018));
+        state.br = Math.max(6, Math.min(11, W * 0.02));
+        const inset = Math.max(26, H * 0.06);
+        state.yourY = H - inset;
+        state.rivalY = inset;
+        state.baseSpeed = Math.min(W, H) * 1.15;
+        state.maxSpeed = state.baseSpeed * 2.4;
+        if (state.mode === 'ready' || state.mode === 'over') {
+          state.yourX = W / 2;
+          state.rivalX = W / 2;
+          state.bx = W / 2;
+          state.by = H / 2;
+          state.targetX = W / 2;
+        }
+        draw();
+      }
+
+      function resetPositions() {
+        state.yourX = W / 2;
+        state.rivalX = W / 2;
+        state.rivalVX = 0;
+        state.targetX = W / 2;
+      }
+
+      function serve(dir: number) {
+        state.rally = 0;
+        state.speed = state.baseSpeed;
+        state.bx = W / 2;
+        state.by = H / 2;
+        // A shallow opening angle so the first ball is returnable.
+        const angle = (Math.random() * 0.5 - 0.25) * Math.PI; // ±45° from vertical
+        state.bvx = Math.sin(angle) * state.speed;
+        state.bvy = Math.cos(angle) * state.speed * dir;
+        state.trail = [];
+        state.mode = 'playing';
+      }
+
+      function paddleBounce(px: number, up: boolean) {
+        // Angle out of the racket by where the ball struck it — the edges cut
+        // the sharpest angles. Speed steps up every return: the rally winds
+        // tighter, the pressure mounts, exactly as the line promises.
+        state.rally += 1;
+        state.speed = Math.min(state.maxSpeed, state.baseSpeed * (1 + state.rally * 0.05));
+        const offset = Math.max(-1, Math.min(1, (state.bx - px) / state.pw));
+        const angle = offset * (Math.PI * 0.36); // up to ~65°
+        state.bvx = Math.sin(angle) * state.speed;
+        state.bvy = Math.cos(angle) * state.speed * (up ? -1 : 1);
+        state.shakeT = 0.12;
+      }
+
+      function point(scorer: 'you' | 'rival') {
+        if (scorer === 'you') state.you += 1;
+        else state.rival += 1;
+        yourScoreEl.textContent = String(state.you);
+        rivalScoreEl.textContent = String(state.rival);
+        state.shakeT = 0.28;
+
+        if (state.you >= WIN || state.rival >= WIN) {
+          state.winner = state.you >= WIN ? 'you' : 'rival';
+          state.mode = 'over';
+          showCard();
+          return;
+        }
+        // The rival serves to whoever just conceded — keep the pressure on.
+        state.mode = 'serving';
+        state.serveTimer = 0.85;
+        state.servingTo = scorer === 'you' ? -1 : 1;
+        resetPositions();
+        state.bx = W / 2;
+        state.by = H / 2;
+      }
+
+      function showCard() {
+        if (state.mode === 'over') {
+          const won = state.winner === 'you';
+          promptEl.textContent = won
+            ? `Game — ${state.you}–${state.rival}. You stayed in the point.`
+            : `Game to BJK — ${state.rival}–${state.you}.`;
+          hintEl.textContent = 'Tap to play again';
+        } else {
+          promptEl.textContent = 'Tap the court to serve';
+          hintEl.textContent = 'Drag to move your racket · first to 7';
+        }
+        card.classList.remove('is-hidden');
+      }
+
+      function hideCard() {
+        card.classList.add('is-hidden');
+      }
+
+      function begin() {
+        if (reduced) return;
+        if (state.mode === 'over') {
+          state.you = 0;
+          state.rival = 0;
+          yourScoreEl.textContent = '0';
+          rivalScoreEl.textContent = '0';
+          state.winner = '';
+        }
+        hideCard();
+        resetPositions();
+        serve(1); // first serve comes to you
+      }
+
+      // ---- input -------------------------------------------------------------
+      function pointerToCourt(clientX: number) {
+        const rect = canvas.getBoundingClientRect();
+        state.targetX = Math.max(state.pw, Math.min(W - state.pw, clientX - rect.left));
+      }
+
+      root.addEventListener(
+        'pointerdown',
+        (e) => {
+          pointerToCourt(e.clientX);
+          if (state.mode === 'ready' || state.mode === 'over') begin();
+        },
+        { passive: true },
+      );
+      root.addEventListener(
+        'pointermove',
+        (e) => {
+          if (e.buttons !== 0 || e.pointerType === 'touch' || e.pointerType === 'pen') {
+            pointerToCourt(e.clientX);
+          } else if (state.mode === 'playing' || state.mode === 'serving') {
+            pointerToCourt(e.clientX);
+          }
+        },
+        { passive: true },
+      );
+
+      const keys = { left: false, right: false };
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = true;
+        else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = true;
+        else if (e.key === ' ' || e.key === 'Enter') {
+          if (state.mode === 'ready' || state.mode === 'over') {
+            e.preventDefault();
+            begin();
+          }
+        } else return;
+        if (e.key.startsWith('Arrow')) e.preventDefault();
+      });
+      window.addEventListener('keyup', (e) => {
+        if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = false;
+        else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
+      });
+
+      // ---- simulation --------------------------------------------------------
+      function step(dt: number) {
+        // Your racket: follow the pointer target, or the keys, quickly but not
+        // instantly.
+        if (keys.left) state.targetX -= W * 1.7 * dt;
+        if (keys.right) state.targetX += W * 1.7 * dt;
+        state.targetX = Math.max(state.pw, Math.min(W - state.pw, state.targetX));
+        const follow = Math.min(1, dt * 16);
+        state.yourX += (state.targetX - state.yourX) * follow;
+        state.yourX = Math.max(state.pw, Math.min(W - state.pw, state.yourX));
+
+        if (state.mode === 'serving') {
+          state.serveTimer -= dt;
+          // Rival drifts back to centre between points.
+          state.rivalX += (W / 2 - state.rivalX) * Math.min(1, dt * 6);
+          if (state.serveTimer <= 0) serve(state.servingTo);
+          return;
+        }
+        if (state.mode !== 'playing') return;
+
+        // Rival AI: chase the ball's x with a capped speed, plus a little error
+        // so a determined player can pull it out of position.
+        const aiMax = state.speed * 0.66;
+        const err = Math.sin(performance.now() * 0.004) * state.pw * 0.5;
+        const desired = state.bx + err;
+        const dx = desired - state.rivalX;
+        const move = Math.max(-aiMax * dt, Math.min(aiMax * dt, dx));
+        state.rivalX += move;
+        state.rivalX = Math.max(state.pw, Math.min(W - state.pw, state.rivalX));
+
+        // Advance the ball.
+        state.bx += state.bvx * dt;
+        state.by += state.bvy * dt;
+
+        // Side walls.
+        if (state.bx < state.br) {
+          state.bx = state.br;
+          state.bvx = Math.abs(state.bvx);
+        } else if (state.bx > W - state.br) {
+          state.bx = W - state.br;
+          state.bvx = -Math.abs(state.bvx);
+        }
+
+        // Your racket (bottom): bounce when the ball reaches its plane moving down.
+        if (
+          state.bvy > 0 &&
+          state.by + state.br >= state.yourY - state.pth / 2 &&
+          state.by + state.br <= state.yourY + state.pth &&
+          Math.abs(state.bx - state.yourX) <= state.pw + state.br
+        ) {
+          state.by = state.yourY - state.pth / 2 - state.br;
+          paddleBounce(state.yourX, true);
+        }
+        // Rival racket (top): bounce moving up.
+        if (
+          state.bvy < 0 &&
+          state.by - state.br <= state.rivalY + state.pth / 2 &&
+          state.by - state.br >= state.rivalY - state.pth &&
+          Math.abs(state.bx - state.rivalX) <= state.pw + state.br
+        ) {
+          state.by = state.rivalY + state.pth / 2 + state.br;
+          paddleBounce(state.rivalX, false);
+        }
+
+        // Trail (fades quickly).
+        state.trail.push({ x: state.bx, y: state.by });
+        if (state.trail.length > 10) state.trail.shift();
+
+        // Points: a ball past either baseline.
+        if (state.by - state.br > H) point('rival');
+        else if (state.by + state.br < 0) point('you');
+      }
+
+      // ---- drawing -----------------------------------------------------------
+      function roundRectBar(cx: number, cy: number, hw: number, th: number, color: string) {
+        const r = th / 2;
+        const x = cx - hw;
+        const y = cy - th / 2;
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + hw * 2, y, x + hw * 2, y + th, r);
+        ctx.arcTo(x + hw * 2, y + th, x, y + th, r);
+        ctx.arcTo(x, y + th, x, y, r);
+        ctx.arcTo(x, y, x + hw * 2, y, r);
+        ctx.closePath();
+        ctx.fillStyle = color;
+        ctx.fill();
+      }
+
+      function draw() {
+        let ox = 0;
+        let oy = 0;
+        if (state.shakeT > 0) {
+          const m = state.shakeT * 22;
+          ox = (Math.random() * 2 - 1) * m;
+          oy = (Math.random() * 2 - 1) * m;
+        }
+        ctx.save();
+        ctx.clearRect(0, 0, W, H);
+        ctx.translate(ox, oy);
+
+        // Court.
+        const g = ctx.createLinearGradient(0, 0, 0, H);
+        g.addColorStop(0, palette.bg0);
+        g.addColorStop(1, palette.bg1);
+        ctx.fillStyle = g;
+        ctx.fillRect(-40, -40, W + 80, H + 80);
+
+        // Court lines: a doubles alley border and a centre service line.
+        ctx.strokeStyle = palette.line;
+        ctx.lineWidth = 2;
+        const m = Math.max(14, W * 0.05);
+        ctx.strokeRect(m, m, W - m * 2, H - m * 2);
+        ctx.beginPath();
+        ctx.moveTo(W / 2, m);
+        ctx.lineTo(W / 2, H - m);
+        ctx.globalAlpha = 0.45;
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+
+        // The net across the middle.
+        ctx.strokeStyle = palette.net;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([7, 9]);
+        ctx.beginPath();
+        ctx.moveTo(0, H / 2);
+        ctx.lineTo(W, H / 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Pressure gauge up the right edge — fills as the rally speed climbs.
+        const pr = state.maxSpeed > 0 ? (state.speed - state.baseSpeed) / (state.maxSpeed - state.baseSpeed) : 0;
+        const gx = W - 7;
+        const gTop = H * 0.34;
+        const gBot = H * 0.66;
+        ctx.strokeStyle = 'rgba(220,255,79,0.25)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(gx, gTop);
+        ctx.lineTo(gx, gBot);
+        ctx.stroke();
+        if (pr > 0.001 && state.mode === 'playing') {
+          ctx.strokeStyle = palette.ball;
+          ctx.beginPath();
+          ctx.moveTo(gx, gBot);
+          ctx.lineTo(gx, gBot - (gBot - gTop) * Math.max(0, Math.min(1, pr)));
+          ctx.stroke();
+        }
+
+        // Rackets.
+        roundRectBar(state.rivalX, state.rivalY, state.pw, state.pth, palette.rival);
+        roundRectBar(state.yourX, state.yourY, state.pw, state.pth, palette.you);
+
+        // Ball trail + ball (hidden between points on the serve pause).
+        const showBall = state.mode === 'playing' || state.mode === 'ready' || state.mode === 'over';
+        if (state.mode === 'playing') {
+          for (let i = 0; i < state.trail.length; i++) {
+            const t = state.trail[i];
+            const a = (i + 1) / state.trail.length;
+            ctx.globalAlpha = a * 0.35;
+            ctx.beginPath();
+            ctx.arc(t.x, t.y, state.br * a, 0, Math.PI * 2);
+            ctx.fillStyle = palette.ball;
+            ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+        }
+        if (showBall) {
+          ctx.beginPath();
+          ctx.arc(state.bx, state.by, state.br, 0, Math.PI * 2);
+          ctx.fillStyle = palette.ball;
+          ctx.shadowColor = palette.ball;
+          ctx.shadowBlur = 18;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          // The seam.
+          ctx.strokeStyle = 'rgba(10,39,49,0.55)';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(state.bx - state.br * 0.2, state.by, state.br * 1.1, -0.9, 0.9);
+          ctx.stroke();
+        }
+
+        ctx.restore();
+      }
+
+      // ---- loop --------------------------------------------------------------
+      let last = 0;
+      function frame(now: number) {
+        const dt = last ? Math.min(0.05, (now - last) / 1000) : 0;
+        last = now;
+        if (state.shakeT > 0) state.shakeT = Math.max(0, state.shakeT - dt);
+        step(dt);
+        draw();
+        requestAnimationFrame(frame);
+      }
+
+      // ---- boot --------------------------------------------------------------
+      const ro = new ResizeObserver(() => resize());
+      ro.observe(root);
+      resize();
+
+      if (reduced) {
+        // No game, no loop: the still court + the quote card is the resting state.
+        promptEl.textContent = 'A game of tennis lives here';
+        hintEl.textContent = 'Motion is off, so the match stays paused';
+        draw();
+      } else {
+        showCard();
+        requestAnimationFrame(frame);
+      }
+    }
+  </script>
+</ExperienceFrame>
+
+<style>
+  .court {
+    position: relative;
+    width: 100%;
+    min-height: 100dvh;
+    overflow: hidden;
+    /* An app, not a document: no scroll-drag stealing the racket swipe. */
+    touch-action: none;
+    background: #0a2731;
+    color: #e9f0e9;
+  }
+  .field {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .hud {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    padding: clamp(0.9rem, 4vh, 2rem) 0;
+  }
+  .score {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.5ch;
+    font-family: var(--font-display, system-ui);
+    letter-spacing: 0.04em;
+    opacity: 0.85;
+  }
+  .score b {
+    font-size: clamp(1.6rem, 7vw, 2.6rem);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .score small {
+    font-size: clamp(0.6rem, 2.4vw, 0.8rem);
+    letter-spacing: 0.22em;
+    opacity: 0.6;
+  }
+  .score--rival {
+    color: #6fd3c6;
+  }
+  .score--you {
+    color: #e9f0e9;
+  }
+
+  .card {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: clamp(1rem, 3vh, 1.75rem);
+    padding: 2rem clamp(1.25rem, 6vw, 3rem);
+    text-align: center;
+    background: rgba(7, 26, 33, 0.72);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+  }
+  .card.is-hidden {
+    display: none;
+  }
+  .quote {
+    margin: 0;
+    max-width: 20ch;
+    font-family: var(--font-display, Georgia, serif);
+    font-weight: 500;
+    font-size: clamp(2rem, 9vw, 3.6rem);
+    line-height: 1.08;
+    letter-spacing: -0.01em;
+    color: #f3f7f2;
+    text-wrap: balance;
+  }
+  .quote p {
+    margin: 0;
+  }
+  .quote footer {
+    margin-top: 0.9rem;
+    font-size: clamp(0.85rem, 3vw, 1.05rem);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    opacity: 0.62;
+  }
+  .quote cite {
+    font-style: normal;
+  }
+  .prompt {
+    margin: 0;
+    font-family: var(--font-display, system-ui);
+    font-size: clamp(1rem, 4vw, 1.25rem);
+    color: #dcff4f;
+    letter-spacing: 0.01em;
+  }
+  .hint {
+    margin: 0;
+    font-size: clamp(0.75rem, 3vw, 0.9rem);
+    letter-spacing: 0.06em;
+    opacity: 0.55;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .prompt {
+      animation: pulse 2.4s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%,
+      100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.4;
+      }
+    }
+  }
+</style>
