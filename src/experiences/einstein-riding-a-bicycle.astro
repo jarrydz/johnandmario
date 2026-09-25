@@ -547,10 +547,28 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
         bikeEl.textContent = toText(bike);
       }
 
+      // Track the container size so the grid can self-heal: if anything resizes
+      // the stage without the observer firing (rotation, DevTools device mode,
+      // dynamic viewport bars), the loop re-measures on the next frame.
+      let lastW = -1;
+      let lastH = -1;
+      function syncSize() {
+        const w = Math.round(root!.clientWidth);
+        const h = Math.round(root!.clientHeight);
+        if (w !== lastW || h !== lastH) {
+          lastW = w;
+          lastH = h;
+          resize();
+          return true;
+        }
+        return false;
+      }
+
       let last = 0;
       function frame(now: number) {
         const dt = last ? Math.min(0.05, (now - last) / 1000) : 0;
         last = now;
+        syncSize();
         step(dt);
         draw();
         requestAnimationFrame(frame);
@@ -577,12 +595,17 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
       });
 
       // ---- boot --------------------------------------------------------------
-      const ro = new ResizeObserver(() => resize());
+      const ro = new ResizeObserver(() => syncSize());
       ro.observe(root);
+      window.addEventListener('resize', syncSize);
+      window.addEventListener('orientationchange', syncSize);
+      lastW = Math.round(root.clientWidth);
+      lastH = Math.round(root.clientHeight);
       resize();
 
       if (reduced) {
-        // No loop: one upright, still frame is the resting state.
+        // No loop: one upright, still frame is the resting state. A resize still
+        // re-measures via the observer, so the still stays correctly sized.
         state.speed = 0;
         draw();
       } else {
