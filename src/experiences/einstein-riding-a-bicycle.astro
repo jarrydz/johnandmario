@@ -194,16 +194,24 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
 
       // ---- resize ------------------------------------------------------------
       function measureCell() {
-        // Measure on <body>, not the stage: DevTools device mode (and other
-        // zoom/scale contexts) put a scale transform on the page, which warps a
-        // transformed element's getBoundingClientRect. offsetWidth/Height are
-        // layout pixels, immune to that, so a big sample stays accurate.
+        // Copy the real layer's resolved font onto the probe. Astro scopes
+        // component styles with a [data-astro-cid] attribute, so a bare
+        // className="ascii" probe would NOT inherit them and would measure a
+        // default proportional font. offsetWidth/Height are layout pixels, so
+        // they stay correct even under a device-mode scale transform.
+        const cs = getComputedStyle(nearEl);
         const probe = document.createElement('pre');
-        probe.className = 'ascii';
         probe.style.position = 'absolute';
         probe.style.visibility = 'hidden';
         probe.style.left = '-9999px';
         probe.style.top = '0';
+        probe.style.margin = '0';
+        probe.style.padding = '0';
+        probe.style.whiteSpace = 'pre';
+        probe.style.fontFamily = cs.fontFamily;
+        probe.style.fontSize = cs.fontSize;
+        probe.style.lineHeight = '1';
+        probe.style.letterSpacing = cs.letterSpacing;
         probe.textContent = ('M'.repeat(50) + '\n').repeat(20).trimEnd();
         document.body.appendChild(probe);
         cw = probe.offsetWidth / 50 || 8;
