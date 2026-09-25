@@ -194,27 +194,37 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
 
       // ---- resize ------------------------------------------------------------
       function measureCell() {
+        // Measure on <body>, not the stage: DevTools device mode (and other
+        // zoom/scale contexts) put a scale transform on the page, which warps a
+        // transformed element's getBoundingClientRect. offsetWidth/Height are
+        // layout pixels, immune to that, so a big sample stays accurate.
         const probe = document.createElement('pre');
         probe.className = 'ascii';
         probe.style.position = 'absolute';
         probe.style.visibility = 'hidden';
         probe.style.left = '-9999px';
         probe.style.top = '0';
-        probe.textContent = 'M'.repeat(50);
-        root!.appendChild(probe);
-        cw = probe.getBoundingClientRect().width / 50 || 8;
-        probe.textContent = 'M\nM\nM\nM\nM';
-        chh = probe.getBoundingClientRect().height / 5 || 14;
+        probe.textContent = ('M'.repeat(50) + '\n').repeat(20).trimEnd();
+        document.body.appendChild(probe);
+        cw = probe.offsetWidth / 50 || 8;
+        chh = probe.offsetHeight / 20 || 14;
         probe.remove();
+      }
+      function viewport() {
+        // The true CSS viewport, unaffected by any ancestor scale transform.
+        return {
+          w: window.innerWidth || document.documentElement.clientWidth,
+          h: window.innerHeight || document.documentElement.clientHeight,
+        };
       }
       function resize() {
         measureCell();
-        const rect = root!.getBoundingClientRect();
-        COLS = Math.max(44, Math.min(280, Math.floor(rect.width / cw)));
-        ROWS = Math.max(30, Math.min(150, Math.floor(rect.height / chh)));
+        const vp = viewport();
+        COLS = Math.max(44, Math.min(280, Math.floor(vp.w / cw)));
+        ROWS = Math.max(30, Math.min(150, Math.floor(vp.h / chh)));
         // Tall phone screens raise the horizon so the landscape fills the frame
         // instead of leaving a big empty sky; wide screens sit it lower.
-        const portrait = rect.height > rect.width * 1.25;
+        const portrait = vp.h > vp.w * 1.25;
         groundY = Math.floor(ROWS * (portrait ? 0.62 : 0.78));
         farBase = Math.floor(groundY * 0.72);
         nearBase = Math.floor(groundY * 0.9);
@@ -553,11 +563,10 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
       let lastW = -1;
       let lastH = -1;
       function syncSize() {
-        const w = Math.round(root!.clientWidth);
-        const h = Math.round(root!.clientHeight);
-        if (w !== lastW || h !== lastH) {
-          lastW = w;
-          lastH = h;
+        const vp = viewport();
+        if (vp.w !== lastW || vp.h !== lastH) {
+          lastW = vp.w;
+          lastH = vp.h;
           resize();
           return true;
         }
@@ -599,8 +608,9 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
       ro.observe(root);
       window.addEventListener('resize', syncSize);
       window.addEventListener('orientationchange', syncSize);
-      lastW = Math.round(root.clientWidth);
-      lastH = Math.round(root.clientHeight);
+      const vp0 = viewport();
+      lastW = vp0.w;
+      lastH = vp0.h;
       resize();
 
       if (reduced) {
