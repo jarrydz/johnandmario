@@ -36,6 +36,7 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
     <pre class="ascii ascii--far" aria-hidden="true"></pre>
     <pre class="ascii ascii--warm" aria-hidden="true"></pre>
     <pre class="ascii ascii--near" aria-hidden="true"></pre>
+    <pre class="ascii ascii--mask" aria-hidden="true"></pre>
     <pre class="ascii ascii--bike" aria-hidden="true"></pre>
 
     <!-- Legibility floor / reduced-motion still: the quote as real, selectable
@@ -52,6 +53,7 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
       const farEl = root.querySelector('.ascii--far') as HTMLPreElement;
       const warmEl = root.querySelector('.ascii--warm') as HTMLPreElement;
       const nearEl = root.querySelector('.ascii--near') as HTMLPreElement;
+      const maskEl = root.querySelector('.ascii--mask') as HTMLPreElement;
       const bikeEl = root.querySelector('.ascii--bike') as HTMLPreElement;
 
       const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -91,6 +93,7 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
       let far: string[] = [];
       let warm: string[] = [];
       let near: string[] = [];
+      let mask: string[] = [];
       let bike: string[] = [];
 
       function makeBuf(): string[] {
@@ -175,11 +178,11 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
       function farTop(wc: number): number {
         const s =
           0.5 * Math.sin(wc * 0.03) + 0.3 * Math.sin(wc * 0.017 + 1.1) + 0.2 * Math.sin(wc * 0.06 + 2);
-        return farBase - Math.floor(((s + 1) / 2) * (ROWS * 0.2));
+        return farBase - Math.floor(((s + 1) / 2) * (groundY * 0.32));
       }
       function nearTop(wc: number): number {
         const s = 0.6 * Math.sin(wc * 0.05 + 0.6) + 0.4 * Math.sin(wc * 0.11 + 2.2);
-        return nearBase - Math.floor(((s + 1) / 2) * (ROWS * 0.14));
+        return nearBase - Math.floor(((s + 1) / 2) * (groundY * 0.22));
       }
       function hillRise(wc: number): number {
         return Math.round(Math.sin(wc * 0.08) * 1.7 + Math.sin(wc * 0.19 + 2) * 1.0 + 2.7);
@@ -209,19 +212,23 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
         const rect = root!.getBoundingClientRect();
         COLS = Math.max(44, Math.min(280, Math.floor(rect.width / cw)));
         ROWS = Math.max(30, Math.min(150, Math.floor(rect.height / chh)));
-        groundY = Math.floor(ROWS * 0.78);
-        farBase = Math.floor(ROWS * 0.56);
-        nearBase = Math.floor(ROWS * 0.68);
+        // Tall phone screens raise the horizon so the landscape fills the frame
+        // instead of leaving a big empty sky; wide screens sit it lower.
+        const portrait = rect.height > rect.width * 1.25;
+        groundY = Math.floor(ROWS * (portrait ? 0.62 : 0.78));
+        farBase = Math.floor(groundY * 0.72);
+        nearBase = Math.floor(groundY * 0.9);
         bikeCol = Math.floor(COLS * 0.24);
 
-        qT = Math.floor(ROWS * 0.13);
-        qB = Math.floor(ROWS * 0.4);
+        qT = Math.floor(ROWS * 0.11);
+        qB = Math.floor(ROWS * 0.38);
         qL = Math.floor(COLS * 0.05);
         qR = Math.floor(COLS * 0.95);
 
         far = makeBuf();
         warm = makeBuf();
         near = makeBuf();
+        mask = makeBuf();
         bike = makeBuf();
 
         // Clouds seeded across ~two screen-widths so wrapping is seamless.
@@ -235,15 +242,15 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
             kind: hash(i, 31) < 0.5 ? 0 : 1,
           });
         }
-        // A few birds drifting the opposite way to the world.
+        // A small flock drifting the opposite way to the world.
         birds = [];
-        const nb = Math.max(2, Math.round(COLS / 55));
+        const nb = Math.max(3, Math.round(COLS / 34));
         for (let i = 0; i < nb; i++) {
           birds.push({
             x: hash(i, 91) * COLS,
-            y: Math.floor(ROWS * 0.1) + Math.floor(hash(i, 41) * ROWS * 0.14),
+            y: Math.floor(ROWS * 0.08) + Math.floor(hash(i, 41) * ROWS * 0.16),
             sp: 2 + hash(i, 5) * 3,
-            size: hash(i, 17) < 0.5 ? 0 : 1,
+            size: hash(i, 17) < 0.35 ? 0 : 1,
           });
         }
 
@@ -397,13 +404,38 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
         }
       }
 
-      function drawBike() {
-        const roll = state.worldX / RX; // wheels + crank turn with distance
+      // Shared bike geometry so the pocket mask and the sprite stay aligned.
+      function bikeGeom() {
         const rearX = bikeCol;
         const frontX = bikeCol + WB;
         const bob = Math.round(Math.sin(state.time * 4) * 0.5);
         const base = (surfAt(rearX) + surfAt(frontX)) / 2 + bob;
-        const hubY = base - RY - 1;
+        return { rearX, frontX, hubY: base - RY - 1 };
+      }
+
+      // A soft "paper pocket" behind the rider: filled blocks in the page colour
+      // that quietly erase the busy field showing through the sprite's gaps, so
+      // the bicycle always reads cleanly. Kept above the horizon only, so the
+      // ground and the wheels' contact line stay unbroken.
+      function drawBikeMask(g: { rearX: number; frontX: number; hubY: number }) {
+        const cx = (g.rearX + g.frontX) / 2;
+        const cy = g.hubY - 2;
+        const rx = WB * 0.5 + 4;
+        const ry = 8;
+        for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) {
+          for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) {
+            const e = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2;
+            if (e > 1) continue;
+            if (y >= surfAt(x)) continue; // never erase the horizon or ground
+            if (e > 0.72 && hash(x, y) > (1 - e) * 3.2) continue; // soft edge
+            put(mask, x, y, '\u2588');
+          }
+        }
+      }
+
+      function drawBike(g: { rearX: number; frontX: number; hubY: number }) {
+        const roll = state.worldX / RX; // wheels + crank turn with distance
+        const { rearX, frontX, hubY } = g;
         const fast = state.speed > (state.cruise + state.max) / 2;
 
         // Wheels: rim, hub, and four spokes turning as the world rolls by.
@@ -500,14 +532,18 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
         far = makeBuf();
         warm = makeBuf();
         near = makeBuf();
+        mask = makeBuf();
         bike = makeBuf();
         drawNear(); // fills surf[] first
         drawFar();
         drawWarm();
-        drawBike();
+        const g = bikeGeom();
+        drawBikeMask(g);
+        drawBike(g);
         farEl.textContent = toText(far);
         warmEl.textContent = toText(warm);
         nearEl.textContent = toText(near);
+        maskEl.textContent = toText(mask);
         bikeEl.textContent = toText(bike);
       }
 
@@ -599,14 +635,20 @@ const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
     z-index: 3;
     color: #322f1e;
   }
-  .ascii--bike {
+  /* The pocket behind the rider — page-coloured blocks that erase the busy
+     field so the bicycle reads cleanly. */
+  .ascii--mask {
     z-index: 4;
+    color: #e8e1d1;
+  }
+  .ascii--bike {
+    z-index: 5;
     color: #b5432c;
   }
 
   .quote {
     position: absolute;
-    z-index: 5;
+    z-index: 6;
     top: clamp(9%, 11vh, 16%);
     left: 50%;
     transform: translateX(-50%);
