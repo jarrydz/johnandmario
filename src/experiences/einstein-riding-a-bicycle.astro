@@ -1,0 +1,599 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import ExperienceFrame from '../layouts/ExperienceFrame.astro';
+
+/**
+ * "Life is like riding a bicycle. To keep your balance, you must keep moving."
+ * — Albert Einstein
+ *
+ * A rider you have to keep pedalling. The whole world is drawn in ASCII — a sun,
+ * drifting clouds, a dithered mountain range, hills and a streaming foreground —
+ * and it scrolls past a bicycle held at a fixed mark, so the bike reads as
+ * riding across it. This is an enactment, not a decoration: coast and the speed
+ * bleeds off to friction, the rider's balance goes with it, and the bike tips
+ * over. Hold anywhere (or Space) to pedal and stay upright. You keep your
+ * balance only for as long as you keep moving — exactly what the line says.
+ *
+ * Legibility floor (ADR 0015): the quote and attribution are real, selectable
+ * DOM text on the resting/tipped card, which is the page's still state. Under
+ * prefers-reduced-motion (and with no JS) the world holds still, the rider sits
+ * upright, and nothing scrolls — the resting styles ARE the reduced-motion
+ * still. All motion lives behind the no-preference gate in the script.
+ */
+
+interface Props {
+  quote: CollectionEntry<'quotes'>;
+}
+
+const { quote } = Astro.props;
+const { attribution } = quote.data;
+const body = (quote.body ?? '').replace(/\s+/g, ' ').trim();
+---
+
+<ExperienceFrame quote={quote} backdrop="#e8e2d3">
+  <main class="stage" data-bike>
+    <pre class="ascii ascii--land" aria-hidden="true"></pre>
+    <pre class="ascii ascii--warm" aria-hidden="true"></pre>
+    <pre class="ascii ascii--bike" aria-hidden="true"></pre>
+
+    <!-- Resting / reduced-motion still: the quote as real, selectable text. -->
+    <div class="card" data-card>
+      <blockquote class="quote">
+        <p>{body}</p>
+        {attribution && <footer>— <cite>{attribution}</cite></footer>}
+      </blockquote>
+      <p class="prompt" data-prompt>Hold anywhere to pedal</p>
+      <p class="hint" data-hint>Keep moving to keep your balance · Space works too</p>
+    </div>
+  </main>
+
+  <script>
+    const root = document.querySelector('[data-bike]') as HTMLElement | null;
+    if (root) {
+      const landEl = root.querySelector('.ascii--land') as HTMLPreElement;
+      const warmEl = root.querySelector('.ascii--warm') as HTMLPreElement;
+      const bikeEl = root.querySelector('.ascii--bike') as HTMLPreElement;
+      const card = root.querySelector('[data-card]') as HTMLElement;
+      const promptEl = root.querySelector('[data-prompt]') as HTMLElement;
+      const hintEl = root.querySelector('[data-hint]') as HTMLElement;
+
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      // ---- grid geometry -----------------------------------------------------
+      // Everything renders onto a monospace character grid. The landscape scales
+      // with the grid; the bicycle is a fixed-size sprite (~one screen mark).
+      let COLS = 0;
+      let ROWS = 0;
+      let cw = 8; // measured character advance width (px)
+      let chh = 14; // measured line height (px)
+      let groundY = 0; // baseline ground row
+      let mountBase = 0; // baseline mountain-foot row
+      let bikeCol = 0; // fixed screen column the rider is pinned to
+      const WB = 12; // wheelbase, in columns
+      const RX = 3; // wheel radius, columns
+      const RY = 2; // wheel radius, rows (chars are taller than wide)
+
+      let surf: number[] = []; // ground surface row per column
+      let clouds: { x: number; y: number }[] = [];
+
+      // ---- character buffers -------------------------------------------------
+      let land: string[] = [];
+      let warm: string[] = [];
+      let bike: string[] = [];
+
+      function makeBuf(): string[] {
+        return new Array(COLS * ROWS).fill(' ');
+      }
+      function put(buf: string[], x: number, y: number, ch: string) {
+        x = Math.round(x);
+        y = Math.round(y);
+        if (x < 0 || y < 0 || x >= COLS || y >= ROWS) return;
+        buf[y * COLS + x] = ch;
+      }
+      function toText(buf: string[]): string {
+        let s = '';
+        for (let y = 0; y < ROWS; y++) {
+          s += buf.slice(y * COLS, (y + 1) * COLS).join('');
+          if (y < ROWS - 1) s += '\n';
+        }
+        return s;
+      }
+
+      // Deterministic value noise in [0,1) — the texture "sticks" to the world,
+      // so it scrolls with it instead of fizzing in place.
+      function hash(x: number, y: number): number {
+        let h = Math.imul(x | 0, 374761393) ^ Math.imul(y | 0, 668265263);
+        h = Math.imul(h ^ (h >>> 13), 1274126177);
+        return ((h >>> 0) % 100000) / 100000;
+      }
+
+      // Direction-aware stroke for line art: shallow → '-', steep → '|',
+      // otherwise the diagonal that matches the slope (screen y grows downward).
+      function seg(dx: number, dy: number): string {
+        const ax = Math.abs(dx);
+        const ay = Math.abs(dy);
+        if (ax > ay * 2) return '-';
+        if (ay > ax * 2) return '|';
+        return dx > 0 === dy > 0 ? '\\' : '/';
+      }
+
+      function line(buf: string[], x0: number, y0: number, x1: number, y1: number, ch: string) {
+        x0 = Math.round(x0);
+        y0 = Math.round(y0);
+        x1 = Math.round(x1);
+        y1 = Math.round(y1);
+        const dx = Math.abs(x1 - x0);
+        const dy = Math.abs(y1 - y0);
+        const sx = x0 < x1 ? 1 : -1;
+        const sy = y0 < y1 ? 1 : -1;
+        let err = dx - dy;
+        let x = x0;
+        let y = y0;
+        let guard = 0;
+        while (guard++ < 500) {
+          put(buf, x, y, ch);
+          if (x === x1 && y === y1) break;
+          const e2 = 2 * err;
+          if (e2 > -dy) {
+            err -= dy;
+            x += sx;
+          }
+          if (e2 < dx) {
+            err += dx;
+            y += sy;
+          }
+        }
+      }
+
+      function rim(buf: string[], cx: number, cy: number, rx: number, ry: number, ch: string) {
+        const steps = Math.max(18, Math.round((rx + ry) * 5));
+        for (let i = 0; i < steps; i++) {
+          const t = (i / steps) * Math.PI * 2;
+          put(buf, cx + Math.cos(t) * rx, cy + Math.sin(t) * ry, ch);
+        }
+      }
+
+      // ---- terrain shape -----------------------------------------------------
+      function mtnTop(wc: number): number {
+        const s =
+          0.5 * Math.sin(wc * 0.045) +
+          0.3 * Math.sin(wc * 0.021 + 1.3) +
+          0.2 * Math.sin(wc * 0.09 + 2.1);
+        const n = (s + 1) / 2; // 0..1
+        return mountBase - Math.floor(n * (ROWS * 0.32));
+      }
+      function hillRise(wc: number): number {
+        return Math.round(Math.sin(wc * 0.08) * 1.6 + Math.sin(wc * 0.17 + 2) * 1.0 + 2.6);
+      }
+      function surfAt(col: number): number {
+        const c = Math.max(0, Math.min(COLS - 1, Math.round(col)));
+        return surf[c] ?? groundY;
+      }
+
+      // ---- resize ------------------------------------------------------------
+      function measureCell() {
+        const probe = document.createElement('pre');
+        probe.className = 'ascii';
+        probe.style.position = 'absolute';
+        probe.style.visibility = 'hidden';
+        probe.style.left = '-9999px';
+        probe.style.top = '0';
+        probe.textContent = 'M'.repeat(50);
+        root!.appendChild(probe);
+        cw = probe.getBoundingClientRect().width / 50 || 8;
+        probe.textContent = 'M\nM\nM\nM\nM';
+        chh = probe.getBoundingClientRect().height / 5 || 14;
+        probe.remove();
+      }
+
+      function resize() {
+        measureCell();
+        const rect = root!.getBoundingClientRect();
+        COLS = Math.max(40, Math.min(260, Math.floor(rect.width / cw)));
+        ROWS = Math.max(22, Math.min(120, Math.floor(rect.height / chh)));
+        groundY = Math.floor(ROWS * 0.74);
+        mountBase = Math.floor(ROWS * 0.6);
+        bikeCol = Math.floor(COLS * 0.26);
+
+        land = makeBuf();
+        warm = makeBuf();
+        bike = makeBuf();
+
+        // Clouds seeded across roughly two screen-widths so wrapping is seamless.
+        clouds = [];
+        const span = COLS * 2;
+        const n = Math.max(3, Math.round(COLS / 26));
+        for (let i = 0; i < n; i++) {
+          clouds.push({
+            x: Math.floor((i / n) * span) + Math.floor(hash(i, 7) * 20),
+            y: 1 + Math.floor(hash(i, 13) * Math.max(2, ROWS * 0.22)),
+          });
+        }
+
+        // Lean pivots about the rider's contact patch on the ground.
+        bikeEl.style.transformOrigin = `${(bikeCol + WB * 0.5) * cw}px ${groundY * chh}px`;
+
+        draw();
+      }
+
+      // ---- the scene ---------------------------------------------------------
+      const SKY = ['·', '˙', '.', '`'];
+      const MTN = ' .:-=+*#';
+      const GROUND = ".,'`\":;~-";
+
+      function drawWorld() {
+        // Per-column terrain heights, sampled at the current scroll offset.
+        for (let x = 0; x < COLS; x++) {
+          surf[x] = groundY - hillRise(x + state.worldX * 1.0);
+        }
+
+        // Sky dust — faint, drifts slowly (far parallax).
+        for (let x = 0; x < COLS; x++) {
+          const wc = x + state.worldX * 0.08;
+          const top = Math.min(surf[x], mtnTop(x + state.worldX * 0.4));
+          for (let y = 0; y < top; y++) {
+            const h = hash(Math.floor(wc), y * 7);
+            if (h < 0.012) put(land, x, y, SKY[Math.floor(hash(x, y) * SKY.length)]);
+          }
+        }
+
+        // Clouds (far parallax), wrapped across the seam.
+        const cloudArt = [' .-~-.', '(     )', " `-~-'"];
+        const span = COLS * 2;
+        for (const c of clouds) {
+          let cx = c.x - Math.floor(state.worldX * 0.15);
+          cx = ((cx % span) + span) % span;
+          if (cx > COLS + 8) cx -= span;
+          for (let r = 0; r < cloudArt.length; r++) {
+            const rowArt = cloudArt[r];
+            for (let k = 0; k < rowArt.length; k++) {
+              const chr = rowArt[k];
+              if (chr !== ' ') put(land, cx + k, c.y + r, chr);
+            }
+          }
+        }
+
+        // Mountain range — dithered so it reads as distant haze; denser toward
+        // the foot, a crisp crest where the ridge meets the sky.
+        for (let x = 0; x < COLS; x++) {
+          const wc = x + state.worldX * 0.4;
+          const top = mtnTop(wc);
+          const foot = surf[x];
+          if (top >= foot) continue;
+          put(land, x, top, hash(Math.floor(wc), 1) < 0.5 ? '/' : '\\');
+          for (let y = top + 1; y < foot; y++) {
+            const d = (y - top) / Math.max(1, foot - top); // 0 crest .. 1 foot
+            const thr = 0.12 + d * 0.55;
+            if (hash(Math.floor(wc), y) < thr) {
+              const idx = Math.min(MTN.length - 1, 1 + Math.floor(d * (MTN.length - 1)));
+              put(land, x, y, MTN[idx]);
+            }
+          }
+        }
+
+        // Ground: a surface stroke with the odd grass blade, then a body of
+        // texture that scrolls faster the deeper (nearer) it is — parallax that
+        // sells the speed. The lowest rows stream as motion streaks.
+        for (let x = 0; x < COLS; x++) {
+          const s = surf[x];
+          put(land, x, s, '_');
+          if (hash(Math.floor(x + state.worldX), 99) < 0.06) put(land, x, s - 1, "'");
+          for (let y = s + 1; y < ROWS; y++) {
+            const depth = y - s;
+            const wc = x + state.worldX * (1.0 + depth * 0.06);
+            const h = hash(Math.floor(wc), y);
+            const near = y >= ROWS - 4;
+            if (near) {
+              if (h < 0.34) put(land, x, y, h < 0.14 ? '=' : '-');
+              else if (h > 0.93) put(land, x, y, '.');
+            } else if (h < 0.3) {
+              put(land, x, y, GROUND[Math.floor(h * 30) % GROUND.length]);
+            }
+          }
+        }
+      }
+
+      function drawSun() {
+        const sun = ['  \\ | /  ', ' \u2014 (*) \u2014 ', '  / | \\  '];
+        const sx = Math.floor(COLS * 0.8) - 4;
+        const sy = Math.floor(ROWS * 0.15);
+        for (let r = 0; r < sun.length; r++) {
+          const rowArt = sun[r];
+          for (let k = 0; k < rowArt.length; k++) {
+            const chr = rowArt[k];
+            if (chr !== ' ') put(warm, sx + k, sy + r, chr);
+          }
+        }
+      }
+
+      function drawBike() {
+        const roll = state.worldX / RX; // wheel + crank angle from distance rolled
+        const rearX = bikeCol;
+        const frontX = bikeCol + WB;
+        const base = (surfAt(rearX) + surfAt(frontX)) / 2;
+        const hubY = base - RY - 1;
+
+        // Wheels: rim, hub, and three spokes that turn as the world rolls by.
+        for (const cx of [rearX, frontX]) {
+          rim(bike, cx, hubY, RX, RY, 'O');
+          for (let i = 0; i < 3; i++) {
+            const a = roll + (i * Math.PI * 2) / 3;
+            const ex = cx + Math.cos(a) * (RX - 0.4);
+            const ey = hubY + Math.sin(a) * (RY - 0.3);
+            line(bike, cx, hubY, ex, ey, seg(Math.cos(a), Math.sin(a)));
+          }
+          put(bike, cx, hubY, 'o');
+        }
+
+        // Diamond frame.
+        const bbx = rearX + WB * 0.5;
+        const bby = hubY;
+        const seatX = rearX + WB * 0.42;
+        const seatY = hubY - 4;
+        const barX = frontX - 1;
+        const barY = hubY - 4;
+        const frame: [number, number, number, number][] = [
+          [rearX, hubY, bbx, bby], // chainstay
+          [bbx, bby, seatX, seatY], // seat tube
+          [seatX, seatY, rearX, hubY], // seat stay
+          [seatX, seatY, barX, barY], // top tube
+          [bbx, bby, barX, barY], // down tube
+          [barX, barY, frontX, hubY], // fork
+        ];
+        for (const [x0, y0, x1, y1] of frame) line(bike, x0, y0, x1, y1, seg(x1 - x0, y1 - y0));
+        put(bike, barX, barY, '='); // handlebars
+
+        // Rider: seat → back → head, an arm to the bars, and two legs driving
+        // the pedals around the crank so the whole figure is visibly pedalling.
+        const shoulderX = seatX + 1;
+        const shoulderY = seatY - 2;
+        line(bike, seatX, seatY, shoulderX, shoulderY, seg(shoulderX - seatX, shoulderY - seatY));
+        put(bike, shoulderX, shoulderY - 1, 'O'); // head
+        line(bike, shoulderX, shoulderY, barX, barY - 1, seg(barX - shoulderX, barY - 1 - shoulderY)); // arm
+
+        const footAx = bbx + Math.cos(roll) * 1.7;
+        const footAy = bby + Math.sin(roll) * 1.0;
+        const footBx = bbx - Math.cos(roll) * 1.7;
+        const footBy = bby - Math.sin(roll) * 1.0;
+        line(bike, seatX, seatY + 1, footAx, footAy, seg(footAx - seatX, footAy - seatY));
+        line(bike, seatX, seatY + 1, footBx, footBy, seg(footBx - seatX, footBy - seatY));
+
+        // A little dust kicks off the rear wheel while you're really moving.
+        if (state.speed > state.balanceSpeed) {
+          const puff = ((state.worldX * 0.5) | 0) % 3;
+          put(bike, rearX - RX - 1 - puff, hubY + RY, '.');
+        }
+      }
+
+      // ---- state + physics ---------------------------------------------------
+      const state = {
+        mode: 'ready' as 'ready' | 'riding' | 'fallen',
+        worldX: 0,
+        speed: 0,
+        pedaling: false,
+        lean: 0, // degrees; + / - is a tip to either side
+        leanVel: 0,
+        // tuning
+        speedMax: 26,
+        accel: 40,
+        friction: 7,
+        balanceSpeed: 9,
+      };
+
+      function begin() {
+        if (reduced) return;
+        state.mode = 'riding';
+        state.speed = state.speedMax * 0.7; // a push to get rolling
+        state.lean = 0;
+        state.leanVel = 0;
+        card.classList.add('is-hidden');
+      }
+      function fall() {
+        state.mode = 'fallen';
+        state.speed = 0;
+        state.lean = 72 * Math.sign(state.lean || 1);
+        state.leanVel = 0;
+        promptEl.textContent = 'You stopped — and over you went';
+        hintEl.textContent = 'Tap to ride again · keep moving to keep your balance';
+        card.classList.remove('is-hidden');
+      }
+
+      function step(dt: number) {
+        if (state.mode !== 'riding') return;
+
+        state.speed += (state.pedaling ? state.accel : -state.friction) * dt;
+        state.speed = Math.max(0, Math.min(state.speedMax, state.speed));
+        state.worldX += state.speed * dt;
+
+        // Balance: while you carry speed the rider steers upright; as speed
+        // bleeds away, gravity and a nervous wobble take over and the lean runs
+        // away — until, past the tipping angle, the bike goes down.
+        const stability = Math.max(0, Math.min(1, state.speed / state.balanceSpeed));
+        const gravity = Math.sin((state.lean * Math.PI) / 180) * 150;
+        const correct = -state.lean * (0.6 + stability * 7);
+        const wobble = (Math.random() - 0.5) * 70 * (1 - stability);
+        state.leanVel += (gravity + correct + wobble) * dt;
+        state.leanVel *= 0.9;
+        state.lean += state.leanVel * dt;
+        if (Math.abs(state.lean) > 62) fall();
+      }
+
+      // ---- draw + loop -------------------------------------------------------
+      function draw() {
+        land = makeBuf();
+        warm = makeBuf();
+        bike = makeBuf();
+        drawWorld();
+        drawSun();
+        drawBike();
+        landEl.textContent = toText(land);
+        warmEl.textContent = toText(warm);
+        bikeEl.textContent = toText(bike);
+        bikeEl.style.transform = `rotate(${state.lean}deg)`;
+      }
+
+      let last = 0;
+      function frame(now: number) {
+        const dt = last ? Math.min(0.05, (now - last) / 1000) : 0;
+        last = now;
+        step(dt);
+        draw();
+        requestAnimationFrame(frame);
+      }
+
+      // ---- input -------------------------------------------------------------
+      function pressStart() {
+        if (reduced) return;
+        if (state.mode === 'ready') begin();
+        else if (state.mode === 'fallen') begin();
+        state.pedaling = true;
+      }
+      function pressEnd() {
+        state.pedaling = false;
+      }
+
+      root.addEventListener('pointerdown', pressStart, { passive: true });
+      window.addEventListener('pointerup', pressEnd, { passive: true });
+      root.addEventListener('pointercancel', pressEnd, { passive: true });
+      root.addEventListener('pointerleave', pressEnd, { passive: true });
+
+      window.addEventListener('keydown', (e) => {
+        if (e.key === ' ' || e.key === 'Enter') {
+          e.preventDefault();
+          pressStart();
+        }
+      });
+      window.addEventListener('keyup', (e) => {
+        if (e.key === ' ' || e.key === 'Enter') pressEnd();
+      });
+
+      // ---- boot --------------------------------------------------------------
+      const ro = new ResizeObserver(() => resize());
+      ro.observe(root);
+      resize();
+
+      if (reduced) {
+        // No loop: an upright rider on a still world is the resting state.
+        promptEl.textContent = 'The rider is resting';
+        hintEl.textContent = 'Motion is off, so the world holds still';
+        draw();
+      } else {
+        requestAnimationFrame(frame);
+      }
+    }
+  </script>
+</ExperienceFrame>
+
+<style>
+  .stage {
+    position: relative;
+    width: 100%;
+    min-height: 100dvh;
+    overflow: hidden;
+    /* An app, not a document: the whole surface is the pedal, so no scroll-drag
+       stealing the press. */
+    touch-action: none;
+    background: #e8e2d3;
+    color: #403a2f;
+  }
+
+  .ascii {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    padding: 0;
+    font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono',
+      monospace;
+    font-size: clamp(9px, 1.1vw + 5px, 15px);
+    line-height: 1;
+    white-space: pre;
+    letter-spacing: 0;
+    overflow: hidden;
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .ascii--land {
+    z-index: 1;
+    color: #4a4335;
+  }
+  .ascii--warm {
+    z-index: 2;
+    color: #cf8a3a;
+  }
+  .ascii--bike {
+    z-index: 3;
+    color: #c0533b;
+    will-change: transform;
+  }
+
+  .card {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: clamp(1rem, 3vh, 1.6rem);
+    padding: 2rem clamp(1.25rem, 6vw, 3rem);
+    text-align: center;
+    background: rgba(232, 226, 211, 0.68);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+  }
+  .card.is-hidden {
+    display: none;
+  }
+  .quote {
+    margin: 0;
+    max-width: 22ch;
+    font-family: var(--font-display, Georgia, serif);
+    font-weight: 500;
+    font-size: clamp(1.8rem, 6.5vw, 3.2rem);
+    line-height: 1.12;
+    letter-spacing: -0.01em;
+    color: #2f2a22;
+    text-wrap: balance;
+  }
+  .quote p {
+    margin: 0;
+  }
+  .quote footer {
+    margin-top: 0.9rem;
+    font-size: clamp(0.8rem, 3vw, 1rem);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    opacity: 0.6;
+  }
+  .quote cite {
+    font-style: normal;
+  }
+  .prompt {
+    margin: 0;
+    font-family: var(--font-display, system-ui);
+    font-size: clamp(1rem, 4vw, 1.2rem);
+    color: #b0492f;
+    letter-spacing: 0.01em;
+  }
+  .hint {
+    margin: 0;
+    font-size: clamp(0.75rem, 3vw, 0.9rem);
+    letter-spacing: 0.05em;
+    opacity: 0.6;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .prompt {
+      animation: pedal-pulse 2.4s ease-in-out infinite;
+    }
+    @keyframes pedal-pulse {
+      0%,
+      100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.4;
+      }
+    }
+  }
+</style>
