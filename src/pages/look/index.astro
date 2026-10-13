@@ -36,14 +36,25 @@ const jzFirstChunk = jzItems.slice(0, LOOK_CHUNK);
         {
           firstChunk.map((item) => (
             <a href={withBase(`/posts/${item.id}`)} class="look-item">
-              <RemoteImage
-                src={item.key}
-                alt={item.alt}
-                width={item.w}
-                height={item.h}
-                sizes="(max-width: 720px) 50vw, 240px"
-                loading="lazy"
-              />
+              {item.key ? (
+                <RemoteImage
+                  src={item.key}
+                  alt={item.alt}
+                  width={item.w}
+                  height={item.h}
+                  sizes="(max-width: 720px) 50vw, 240px"
+                  loading="lazy"
+                />
+              ) : (
+                <img
+                  src={item.src}
+                  alt={item.alt}
+                  width={item.w}
+                  height={item.h}
+                  loading="lazy"
+                  decoding="async"
+                />
+              )}
             </a>
           ))
         }
@@ -136,6 +147,20 @@ const jzFirstChunk = jzItems.slice(0, LOOK_CHUNK);
       a.href = `${postsBase}/${item.id}`;
       a.className = 'look-item';
 
+      const img = document.createElement('img');
+      img.alt = item.alt || '';
+      if (item.w) img.width = item.w;
+      if (item.h) img.height = item.h;
+      img.loading = 'lazy';
+      img.decoding = 'async';
+
+      // Local originals (in the repo) are already built URLs — skip the image Worker.
+      if (!item.key && item.src) {
+        img.src = item.src;
+        a.append(img);
+        return a;
+      }
+
       const picture = document.createElement('picture');
       // WebP only (no AVIF) to keep billable image transforms down.
       const webp = document.createElement('source');
@@ -144,13 +169,7 @@ const jzFirstChunk = jzItems.slice(0, LOOK_CHUNK);
       webp.sizes = sizes;
 
       const fallbackWidths = usableWidths(item.w);
-      const img = document.createElement('img');
       img.src = url(item.key, fallbackWidths[fallbackWidths.length - 1], 'jpeg');
-      img.alt = item.alt || '';
-      if (item.w) img.width = item.w;
-      if (item.h) img.height = item.h;
-      img.loading = 'lazy';
-      img.decoding = 'async';
 
       picture.append(webp, img);
       a.append(picture);

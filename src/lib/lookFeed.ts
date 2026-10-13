@@ -1,3 +1,4 @@
+import { getImage } from 'astro:assets';
 import { getCollection } from 'astro:content';
 
 /**
@@ -7,7 +8,8 @@ import { getCollection } from 'astro:content';
  */
 export interface LookItem {
   id: string; // post id, e.g. "2013-10-26-65108151373" → /posts/<id>
-  key: string; // R2 object key, served via the image Worker
+  key?: string; // R2 object key, served via the image Worker
+  src?: string; // built local-asset URL, when the original is in the repo
   w?: number; // intrinsic width (caps srcset, sets aspect ratio)
   h?: number; // intrinsic height
   alt: string;
@@ -21,23 +23,35 @@ export interface LookItem {
 export const LOOK_CHUNK = 30;
 
 /**
- * The full, ordered Look feed: every post that carries an `r2_key`, newest
- * first. Shared by the index page (first chunk + bootstrap) and the JSON
- * endpoint (every chunk) so the two can never drift out of sync.
+ * The full, ordered Look feed: every post that carries an `r2_key` or a local
+ * `image`, newest first. Shared by the index page (first chunk + bootstrap) and
+ * the JSON endpoint (every chunk) so the two can never drift out of sync.
  */
 export async function getLookItems(opts: { jz?: boolean } = {}): Promise<LookItem[]> {
   const posts = await getCollection('posts');
-  return posts
-    .filter((p) => p.data.r2_key)
+  const ordered = posts
+    .filter((p) => p.data.r2_key || p.data.image)
     .filter((p) => (opts.jz ? p.data.jz === true : true)) // /look?jz → JZ's own photos
-    .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf())
-    .map((p) => ({
-      id: p.id,
-      key: p.data.r2_key as string,
-      w: p.data.image_width,
-      h: p.data.image_height,
-      alt: p.data.image_alt ?? '',
-    }));
+    .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+
+  return Promise.all(
+    ordered.map(async (p) => {
+      let src: string | undefined;
+      if (!p.data.r2_key && p.data.image) {
+        const width = Math.min(p.data.image_width ?? p.data.image.width, 1600);
+        const optimized = await getImage({ src: p.data.image, width });
+        src = optimized.src;
+      }
+      return {
+        id: p.id,
+        key: p.data.r2_key,
+        src,
+        w: p.data.image_width ?? p.data.image?.width,
+        h: p.data.image_height ?? p.data.image?.height,
+        alt: p.data.image_alt ?? '',
+      };
+    }),
+  );
 }
 
 /** Total number of chunks for a given item count (always at least 1). */
